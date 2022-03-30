@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+import socket
+import threading
+
+def run(conn):
+    while True:
+        data = conn.recv(16384)
+
+        if not data:
+            break
+
+        conn.send(data)
+
+    conn.shutdown(socket.SHUT_RDWR)
+    conn.close()
+
+def main():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    sock.bind(("localhost", 45674))
+    sock.listen(5)
+
+    while True:
+        conn, addr = sock.accept()
+
+        print(111, conn, addr)
+
+        threading.Thread(target=lambda: run(conn)).start()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
