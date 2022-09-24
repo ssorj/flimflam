@@ -31,7 +31,7 @@ standard_args = (
 )
 
 @command
-def check(app):
+def check():
     """
     Check for required programs and system configuration
     """
@@ -46,7 +46,7 @@ def check(app):
         exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
 
 @command
-def clean(app):
+def clean():
     """
     Remove build artifacts and output files
     """
@@ -58,11 +58,11 @@ def clean(app):
     remove("transfers.csv.old")
 
 @command
-def build(app):
+def build():
     """
     Compile the load generator
     """
-    check(app)
+    check()
     # run("gcc pellmell.c -o pellmell -g -O2 -std=c99 -fno-omit-frame-pointer -lqpid-proton -lqpid-proton-proactor")
 
 def run_outer(inner, jobs, warmup):
@@ -86,11 +86,11 @@ def print_transfers(duration):
     pass
 
 @command(args=standard_args)
-def stat(app, jobs, duration, warmup):
+def stat(jobs, duration, warmup):
     """
     Run the workload and capture 'perf stat' output
     """
-    build(app)
+    build()
 
     with temp_file() as output:
         def inner(router):
@@ -103,11 +103,11 @@ def stat(app, jobs, duration, warmup):
         print(read(output))
 
 @command(args=standard_args)
-def flamegraph(app, jobs, duration, warmup):
+def flamegraph(jobs, duration, warmup):
     """
     Run the workload and generate a flamegraph
     """
-    build(app)
+    build()
 
     with temp_file() as output:
         def inner(router):
@@ -123,11 +123,11 @@ def flamegraph(app, jobs, duration, warmup):
         print(read(output))
 
 @command(args=standard_args)
-def record(app, jobs, duration, warmup):
+def record(jobs, duration, warmup):
     """
     Run the workload and capture perf events using 'perf record'
     """
-    build(app)
+    build()
 
     with temp_file() as output:
         def inner(router):
@@ -140,11 +140,11 @@ def record(app, jobs, duration, warmup):
         print(read(output))
 
 @command
-def self_test(app):
+def self_test():
     """
     Test Flimflam
     """
-    flamegraph(app, duration=0.1, warmup=0.1, jobs=1)
-    stat(app, duration=0.1, warmup=0.1, jobs=1)
-    record(app, duration=0.1, warmup=0.1, jobs=1)
-    clean(app)
+    flamegraph(duration=0.1, warmup=0.1, jobs=1)
+    stat(duration=0.1, warmup=0.1, jobs=1)
+    record(duration=0.1, warmup=0.1, jobs=1)
+    clean()
