@@ -38,7 +38,7 @@ def check():
     check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
     check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
-    check_program("skrouterd", "I can't find skrouterd.  Make sure it is on the path")
+    check_program("skrouterd", "I can't find skrouterd.  Make sure it is on the path.")
 
     perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
 
@@ -54,8 +54,7 @@ def clean():
     remove("perf.data.old")
     remove("flamegraph.html")
     remove("flamegraph.html.old")
-    remove("transfers.csv")
-    remove("transfers.csv.old")
+    remove(list_dir(".", "transfers.*.csv"))
 
 @command
 def build():
@@ -81,6 +80,10 @@ def run_outer(inner, jobs, warmup):
         finally:
             for proc in procs:
                 kill(proc)
+
+    for i in range(jobs):
+        print(f"--- {i} ---")
+        print(tail(f"transfers.{i}.csv", 3))
 
 def print_transfers(duration):
     pass

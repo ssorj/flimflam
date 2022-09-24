@@ -3,12 +3,20 @@
 import socket
 import threading
 
-def run(conn):
+def run(thread_id, conn):
+    total = 0
+
+    transfers = open(f"transfers.{thread_id}.csv", "w")
+
     while True:
         data = conn.recv(16384)
 
         if not data:
             break
+
+        total += len(data)
+
+        transfers.write(f"{len(data)},{total}\n")
 
         conn.send(data)
 
@@ -17,18 +25,18 @@ def run(conn):
 
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    thread_id = 0
 
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
     sock.bind(("localhost", 45674))
     sock.listen(5)
 
     while True:
         conn, addr = sock.accept()
 
-        print(111, conn, addr)
+        threading.Thread(target=lambda: run(thread_id, conn)).start()
 
-        threading.Thread(target=lambda: run(conn)).start()
+        thread_id += 1
 
 if __name__ == "__main__":
     try:
