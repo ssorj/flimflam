@@ -17,12 +17,43 @@
 # under the License.
 #
 
-FROM centos:8
+from plano import *
 
-RUN dnf -qy update && dnf -q clean all
+@test
+def hello():
+    print("Hello")
 
-RUN dnf -y install make python2 python2-pyyaml python3 python3-pyyaml
+@test
+async def hello_async():
+    print("Hello")
 
-COPY . /root/plano
-WORKDIR /root/plano
-CMD ["make", "clean", "test", "install", "PREFIX=/usr/local"]
+@test
+def goodbye():
+    print("Goodbye")
+
+@test(disabled=True)
+def badbye():
+    print("Badbye")
+    assert False
+
+@test(disabled=True)
+def skipped():
+    skip_test("Skipped")
+    assert False
+
+@test(disabled=True)
+def keyboard_interrupt():
+    raise KeyboardInterrupt()
+
+@test(disabled=True, timeout=0.05)
+def timeout():
+    sleep(10, quiet=True)
+    assert False
+
+@test(disabled=True)
+def process_error():
+    run("expr 1 / 0")
+
+@test(disabled=True)
+def system_exit_():
+    exit(1)
