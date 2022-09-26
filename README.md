@@ -1,6 +1,6 @@
-# Pellmell
+# Flimflam
 
-Pellmell is a tool for testing Skupper router performance.  It
+Flimflam is a tool for testing Skupper router performance.  It
 combines a standard workload with scripting to capture metrics using
 the "perf" tools.
 
