@@ -4,7 +4,6 @@ router1_config = """
 router {
     mode: interior
     id: router1
-    workerThreads: 2
 }
 
 tcpListener {
@@ -24,7 +23,6 @@ router2_config = """
 router {
     mode: interior
     id: router2
-    workerThreads: 2
 }
 
 tcpConnector {
@@ -109,11 +107,14 @@ def run_outer(inner, jobs, warmup):
     for i in range(jobs):
         line = tail(f"transfers.{i}.csv", 1)
         values = line.split(",", 1)
-        total += int(values[1])
+
+        try:
+            total += int(values[1])
+        except IndexError:
+            print("ERROR: Unexpected transfer value:", values)
 
     print()
     print(f">>> {total:,} bytes <<<")
-    print()
 
 def print_transfers(duration):
     pass
@@ -177,7 +178,7 @@ def self_test():
     """
     Test Flimflam
     """
-    flamegraph(duration=0.1, warmup=0.1, jobs=1)
-    stat(duration=0.1, warmup=0.1, jobs=1)
-    record(duration=0.1, warmup=0.1, jobs=1)
+    flamegraph(duration=1, warmup=0.1, jobs=1)
+    stat(duration=1, warmup=0.1, jobs=1)
+    record(duration=1, warmup=0.1, jobs=1)
     clean()

@@ -4,23 +4,32 @@ import socket
 import sys
 import threading
 
-def run():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def run(thread_id):
+    send_data = b"x" * 16384
+    total = 0
 
-    sock.connect(("localhost", 45673))
+    with open(f"transfers.{thread_id}.csv", "w") as transfers:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    data = b"x" * 16384
+        sock.connect(("localhost", 45673))
 
-    while True:
-        sock.send(data)
+        with sock:
+            while True:
+                sock.send(send_data)
 
-        sock.recv(16384)
+                received_data = sock.recv(16384)
+
+                if not received_data:
+                    break
+
+                total += len(received_data)
+                transfers.write(f"{len(received_data)},{total}\n")
 
 def main():
     jobs = int(sys.argv[1])
 
     for i in range(jobs):
-        threading.Thread(target=run).start()
+        threading.Thread(target=run, args=[i]).start()
 
 if __name__ == "__main__":
     try:

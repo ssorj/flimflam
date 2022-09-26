@@ -3,40 +3,29 @@
 import socket
 import threading
 
-def run(thread_id, conn):
-    total = 0
+def run(conn):
+    with conn:
+        while True:
+            data = conn.recv(16384)
 
-    transfers = open(f"transfers.{thread_id}.csv", "w")
+            if not data:
+                break
 
-    while True:
-        data = conn.recv(16384)
-
-        if not data:
-            break
-
-        total += len(data)
-
-        transfers.write(f"{len(data)},{total}\n")
-
-        conn.send(data)
-
-    conn.shutdown(socket.SHUT_RDWR)
-    conn.close()
+            conn.send(data)
 
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    thread_id = 0
 
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("localhost", 45674))
-    sock.listen(5)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("localhost", 45674))
+        sock.listen(5)
 
-    while True:
-        conn, addr = sock.accept()
-
-        threading.Thread(target=lambda: run(thread_id, conn)).start()
-
-        thread_id += 1
+        while True:
+            conn, addr = sock.accept()
+            threading.Thread(target=run, args=[conn]).start()
+    finally:
+        sock.close()
 
 if __name__ == "__main__":
     try:
