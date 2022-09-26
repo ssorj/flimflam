@@ -1,9 +1,10 @@
 # -*- mode: python -*-
 
-router_config = """
+router1_config = """
 router {
-    mode: standalone
-    id: flimflam
+    mode: interior
+    id: router1
+    workerThreads: 2
 }
 
 tcpListener {
@@ -12,14 +13,35 @@ tcpListener {
     port: 45673
 }
 
+connector {
+   host: localhost
+   port: 45672
+   role: inter-router
+}
+"""
+
+router2_config = """
+router {
+    mode: interior
+    id: router2
+    workerThreads: 2
+}
+
 tcpConnector {
     address: flimflam/tcp
     host: localhost
     port: 45674
 }
+
+listener {
+    host: localhost
+    port: 45672
+    role: inter-router
+}
 """
 
-router_config_file = write(make_temp_file(), router_config)
+router1_config_file = write(make_temp_file(), router1_config)
+router2_config_file = write(make_temp_file(), router2_config)
 
 standard_args = (
     CommandArgument("duration", default=10, positional=False,
@@ -67,16 +89,17 @@ def build():
 def run_outer(inner, jobs, warmup):
     procs = list()
 
-    with start(f"skrouterd --config {router_config_file}") as router:
+    with start(f"skrouterd --config {router1_config_file}") as router1, \
+         start(f"skrouterd --config {router2_config_file}") as router2:
         await_port(45673)
 
         procs.append(start("./tcpserver"))
         procs.append(start(f"./tcpclient {jobs}"))
 
         try:
-            with start(f"pidstat 2 --human -t -p {router.pid}"):
+            with start(f"pidstat 2 --human -t -p {router1.pid},{router2.pid}"):
                 sleep(warmup)
-                inner(router)
+                inner(router1, router2)
         finally:
             for proc in procs:
                 kill(proc)
@@ -96,8 +119,8 @@ def stat(jobs, duration, warmup):
     build()
 
     with temp_file() as output:
-        def inner(router):
-            run(f"perf stat --detailed --pid {router.pid} sleep {duration}", output=output)
+        def inner(router1, router2):
+            run(f"perf stat --detailed --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
         run_outer(inner, jobs, warmup)
 
@@ -113,11 +136,11 @@ def flamegraph(jobs, duration, warmup):
     build()
 
     with temp_file() as output:
-        def inner(router):
+        def inner(router1, router2):
             if exists("flamegraph.html"):
                 move("flamegraph.html", "flamegraph.html.old")
 
-            run(f"perf script flamegraph --freq 99 --call-graph dwarf --pid {router.pid} sleep {duration}", stdout=output)
+            run(f"perf script flamegraph --freq 99 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", stdout=output)
 
         run_outer(inner, jobs, warmup)
 
@@ -133,8 +156,8 @@ def record(jobs, duration, warmup):
     build()
 
     with temp_file() as output:
-        def inner(router):
-            run(f"perf record --freq 99 --call-graph dwarf --pid {router.pid} sleep {duration}", output=output)
+        def inner(router1, router2):
+            run(f"perf record --freq 99 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
         run_outer(inner, jobs, warmup)
 
