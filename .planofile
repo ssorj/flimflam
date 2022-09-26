@@ -104,9 +104,16 @@ def run_outer(inner, jobs, warmup):
             for proc in procs:
                 kill(proc)
 
+    total = 0
+
     for i in range(jobs):
-        print(f"--- {i} ---")
-        print(tail(f"transfers.{i}.csv", 3))
+        line = tail(f"transfers.{i}.csv", 1)
+        values = line.split(",", 1)
+        total += int(values[1])
+
+    print()
+    print(f">>> {total:,} bytes <<<")
+    print()
 
 def print_transfers(duration):
     pass
