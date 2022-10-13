@@ -17,7 +17,7 @@ def run(thread_id):
             while True:
                 sock.send(send_data)
 
-                received_data = sock.recv(16384)
+                received_data = sock.recv(len(send_data))
 
                 if not received_data:
                     break

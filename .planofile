@@ -141,6 +141,11 @@ def flamegraph(jobs, duration, warmup):
     """
     Run the workload and generate a flamegraph
     """
+    try:
+        check_exists("/usr/share/d3-flame-graph")
+    except:
+        fail("I can't find d3-flame-graph.  Run 'dnf install js-d3-flame-graph'.")
+
     build()
 
     with temp_file() as output:
