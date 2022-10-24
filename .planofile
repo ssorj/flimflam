@@ -106,10 +106,10 @@ def run_outer(inner, jobs, warmup):
 
     for i in range(jobs):
         line = tail(f"transfers.{i}.csv", 1)
-        values = line.split(",", 1)
+        values = line.split(",", 2)
 
         try:
-            total += int(values[1])
+            total += int(values[2])
         except IndexError:
             print("ERROR: Unexpected transfer value:", values)
 

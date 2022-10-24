@@ -5,17 +5,17 @@ import sys
 import threading
 
 def run(thread_id):
-    send_data = b"x" * 16384
+    send_data = b"x" * 65536
     total = 0
 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    sock.connect(("localhost", 45673))
+
     with open(f"transfers.{thread_id}.csv", "w") as transfers:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        sock.connect(("localhost", 45673))
-
         with sock:
             while True:
-                sock.send(send_data)
+                sent = sock.send(send_data)
 
                 received_data = sock.recv(len(send_data))
 
@@ -23,7 +23,7 @@ def run(thread_id):
                     break
 
                 total += len(received_data)
-                transfers.write(f"{len(received_data)},{total}\n")
+                transfers.write(f"{sent},{len(received_data)},{total}\n")
 
 def main():
     jobs = int(sys.argv[1])
