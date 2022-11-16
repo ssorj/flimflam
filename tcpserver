@@ -6,7 +6,11 @@ import threading
 def run(conn):
     with conn:
         while True:
+            # print(111)
+
             data = conn.recv(16384)
+
+            # print(222, data[:20])
 
             if not data:
                 break

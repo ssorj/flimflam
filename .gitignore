@@ -1,4 +1,6 @@
-/flamegraph.html*
+/client
+/server
 /perf.data*
-/transfers.csv*
+/flamegraph.html*
+/transfers.*.csv*
 __pycache__/

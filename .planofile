@@ -6,10 +6,22 @@ router {
     id: router1
 }
 
+listener {
+    host: localhost
+    port: 20001
+    saslMechanisms: ANONYMOUS
+}
+
 tcpListener {
     address: flimflam/tcp
     host: localhost
     port: 45673
+}
+
+tcpConnector {
+    address: flimflam/tcp
+    host: localhost
+    port: 45674
 }
 
 connector {
@@ -19,32 +31,38 @@ connector {
 }
 """
 
-router2_config = """
-router {
-    mode: interior
-    id: router2
-}
+# router2_config = """
+# router {
+#     mode: interior
+#     id: router2
+# }
 
-tcpConnector {
-    address: flimflam/tcp
-    host: localhost
-    port: 45674
-}
+# listener {
+#     host: localhost
+#     port: 20002
+#     saslMechanisms: ANONYMOUS
+# }
 
-listener {
-    host: localhost
-    port: 45672
-    role: inter-router
-}
-"""
+# tcpConnector {
+#     address: flimflam/tcp
+#     host: localhost
+#     port: 45674
+# }
+
+# listener {
+#     host: localhost
+#     port: 45672
+#     role: inter-router
+# }
+# """
 
 router1_config_file = write(make_temp_file(), router1_config)
-router2_config_file = write(make_temp_file(), router2_config)
+# router2_config_file = write(make_temp_file(), router2_config)
 
 standard_args = (
-    CommandArgument("duration", default=10, positional=False,
+    CommandArgument("duration", default=5, positional=False,
                     help="The time to run (excluding warmup) in seconds"),
-    CommandArgument("warmup", default=10, positional=False,
+    CommandArgument("warmup", default=5, positional=False,
                     help="Warmup time in seconds"),
     CommandArgument("jobs", default=2, positional=False,
                     help="The number of concurrent client workloads"),
@@ -70,6 +88,8 @@ def clean():
     """
     Remove build artifacts and output files
     """
+    remove("client")
+    remove("server")
     remove("perf.data")
     remove("perf.data.old")
     remove("flamegraph.html")
@@ -82,22 +102,33 @@ def build():
     Compile the load generator
     """
     check()
-    # run("gcc pellmell.c -o pellmell -g -O2 -std=c99 -fno-omit-frame-pointer -lqpid-proton -lqpid-proton-proactor")
+
+    run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
 
 def run_outer(inner, jobs, warmup):
     procs = list()
 
-    with start(f"skrouterd --config {router1_config_file}") as router1, \
-         start(f"skrouterd --config {router2_config_file}") as router2:
+    with start(f"skrouterd --config {router1_config_file}") as router1: #, \
+        # start(f"skrouterd --config {router2_config_file}") as router2:
         await_port(45673)
 
         procs.append(start("./tcpserver"))
-        procs.append(start(f"./tcpclient {jobs}"))
+
+        # Without a sleep here, the router closes the client
+        # connections because the server isn't ready yet.
+        sleep(1)
+
+        procs.append(start(f"./client {jobs}"))
+
+        # sleep(1)
+
+        pids = [router1.pid] + [x.pid for x in procs]
+        pids = ",".join([str(x) for x in pids])
 
         try:
-            with start(f"pidstat 2 --human -t -p {router1.pid},{router2.pid}"):
+            with start(f"pidstat 2 --human -t -p {pids}"):
                 sleep(warmup)
-                inner(router1, router2)
+                inner(router1, None) #, router2)
         finally:
             for proc in procs:
                 kill(proc)
@@ -153,7 +184,7 @@ def flamegraph(jobs, duration, warmup):
             if exists("flamegraph.html"):
                 move("flamegraph.html", "flamegraph.html.old")
 
-            run(f"perf script flamegraph --freq 99 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", stdout=output)
+            run(f"perf script flamegraph --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", stdout=output)
 
         run_outer(inner, jobs, warmup)
 
@@ -170,13 +201,104 @@ def record(jobs, duration, warmup):
 
     with temp_file() as output:
         def inner(router1, router2):
-            run(f"perf record --freq 99 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
+            run(f"perf record --freq 997 --call-graph dwarf --pid {router1.pid} sleep {duration}")
+
+        run_outer(inner, jobs, warmup)
+
+        print_transfers(duration + warmup)
+
+    run("perf report --stdio --call-graph none --no-children --percent-limit 1")
+
+@command(args=standard_args)
+def c2c(jobs, duration, warmup):
+    """
+    Run the workload and capture perf events using 'perf c2c'
+    """
+    build()
+
+    with temp_file() as output:
+        def inner(router1, router2):
+            run(f"perf c2c record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
         run_outer(inner, jobs, warmup)
 
         print_transfers(duration + warmup)
 
         print(read(output))
+
+@command(args=standard_args)
+def mem(jobs, duration, warmup):
+    """
+    Run the workload and capture perf events using 'perf mem'
+    """
+    build()
+
+    with temp_file() as output:
+        def inner(router1, router2):
+            run(f"perf mem record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
+
+        run_outer(inner, jobs, warmup)
+
+        print_transfers(duration + warmup)
+
+        print(read(output))
+
+    run("perf mem report --stdio --call-graph none --no-children --percent-limit 1")
+
+@command(args=standard_args)
+def sleep_(jobs, duration, warmup):
+    """
+    XXX
+    """
+
+    # # plano: notice: Running command 'perf record -e sched:sched_stat_sleep -e sched:sched_switch -e sched:sched_process_exit --pid 149399,149400 sleep 5 -o perf.data.raw'
+    # # event syntax error: 'sched:sched_stat_sleep'
+    # #                      \___ can't access trace events
+
+    # # Error:	No permissions to read /sys/kernel/tracing/events/sched/sched_stat_sleep
+    # # Hint:	Try 'sudo mount -o remount,mode=755 /sys/kernel/tracing/'
+
+    # Actually:
+    #
+    # sudo chmod -R o+r /sys/kernel/tracing
+    # sudo find /sys/kernel/tracing -type d -exec chmod o+x {} \;
+    #
+    # And:
+    #
+    # sudo sysctl kernel.sched_schedstats=1
+
+    build()
+
+    with temp_file() as output:
+        def inner(router1, router2):
+            run(f"perf record -e sched:sched_stat_sleep -e sched:sched_switch -e sched:sched_process_exit --call-graph dwarf --pid {router1.pid},{router2.pid} -o perf.data.raw sleep {duration}")
+
+        run_outer(inner, jobs, warmup)
+
+        print_transfers(duration + warmup)
+
+        print(read(output))
+
+        run("perf inject -v --sched-stat -i perf.data.raw -o perf.data")
+
+        run("perf report --stdio --show-total-period -i perf.data --call-graph none --no-children --percent-limit 1")
+
+@command(args=standard_args)
+def skstat(jobs, duration, warmup):
+    """
+    Run the workload and capture 'skstat' output
+    """
+    build()
+
+    with temp_file() as output:
+        def inner(router1, router2):
+            run(f"sleep {duration}")
+            run(f"skstat -b localhost:20001 -m")
+            # run(f"perf mem record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
+
+        run_outer(inner, jobs, warmup)
+
+        print_transfers(duration + warmup)
 
 @command
 def self_test():
