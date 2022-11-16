@@ -67,7 +67,7 @@ void* run(void* data) {
 error:
     fprintf(stderr, "ERROR! %s\n", strerror(errno));
 
-    if (sock < 0) close(sock);
+    if (sock > 0) close(sock);
 
     pthread_exit(NULL);
 }

@@ -84,7 +84,7 @@ int main(size_t argc, char** argv) {
 error:
     fprintf(stderr, "ERROR! %s\n", strerror(errno));
 
-    if (server_sock< 0) close(server_sock);
+    if (server_sock > 0) shutdown(server_sock, SHUT_RDWR);
 
     exit(-1);
 }
