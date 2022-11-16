@@ -104,6 +104,7 @@ def build():
     check()
 
     run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
+    run("gcc server.c -o server -g -O2 -std=c99 -fno-omit-frame-pointer")
 
 def run_outer(inner, jobs, warmup):
     procs = list()
@@ -112,7 +113,7 @@ def run_outer(inner, jobs, warmup):
         # start(f"skrouterd --config {router2_config_file}") as router2:
         await_port(45673)
 
-        procs.append(start("./tcpserver"))
+        procs.append(start("./server"))
 
         # Without a sleep here, the router closes the client
         # connections because the server isn't ready yet.

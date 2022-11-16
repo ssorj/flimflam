@@ -8,22 +8,22 @@
 #include <unistd.h>
 
 #define PORT 45673
-#define BUFFER_SIZE 16384
-// #define BUFFER_SIZE 16385
+// #define BUFFER_SIZE 16384
+#define BUFFER_SIZE 16385
 
 void* run(void* data) {
+    int sock = -1;
     int thread_id = *((int *) data);
-    char* file_name = (char*) malloc(256);
-    char* send_buffer = (char*) malloc(BUFFER_SIZE);
-    char* receive_buffer = (char*) malloc(BUFFER_SIZE);
+    char* transfers_file = (char*) malloc(256);
+    char* buffer = (char*) malloc(BUFFER_SIZE);
 
-    snprintf(file_name, 256, "transfers.%d.csv", thread_id);
+    snprintf(transfers_file, 256, "transfers.%d.csv", thread_id);
 
-    FILE* transfers = fopen(file_name, "w");
+    FILE* transfers = fopen(transfers_file, "w");
 
     if (!transfers) goto error;
 
-    memset(send_buffer, 'x', BUFFER_SIZE);
+    memset(buffer, 'x', BUFFER_SIZE);
 
     struct sockaddr_in addr = (struct sockaddr_in) {
         0,
@@ -32,7 +32,7 @@ void* run(void* data) {
         .sin_port = htons(PORT)
     };
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock < 0) goto error;
 
@@ -45,11 +45,11 @@ void* run(void* data) {
     size_t total = 0;
 
     while (1) {
-        ssize_t sent = send(sock, send_buffer, BUFFER_SIZE, 0);
+        ssize_t sent = send(sock, buffer, BUFFER_SIZE, 0);
 
         if (sent < 0) goto error;
 
-        ssize_t received = recv(sock, receive_buffer, BUFFER_SIZE, 0);
+        ssize_t received = recv(sock, buffer, BUFFER_SIZE, 0);
 
         if (received == 0) {
             fclose(transfers);
@@ -66,7 +66,10 @@ void* run(void* data) {
 
 error:
     fprintf(stderr, "ERROR! %s\n", strerror(errno));
-    exit(-1);
+
+    if (sock < 0) close(sock);
+
+    pthread_exit(NULL);
 }
 
 int main(size_t argc, char** argv) {
