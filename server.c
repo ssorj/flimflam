@@ -7,8 +7,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define PORT 45674
-
 typedef struct thread_context {
     int socket;
     int buffer_size;
@@ -81,7 +79,6 @@ int main(size_t argc, char** argv) {
     }
 
 egress:
-
     if (errno) {
         fprintf(stderr, "ERROR! %s\n", strerror(errno));
     }

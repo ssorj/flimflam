@@ -7,8 +7,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define PORT 45673
-
 typedef struct thread_context {
     int id;
     int socket;
@@ -26,7 +24,7 @@ void* run(void* data) {
     char* buffer = (char*) malloc(buffer_size);
     memset(buffer, 'x', buffer_size);
 
-    char* transfers_file = (char*) malloc(256);
+    char transfers_file[256];
     snprintf(transfers_file, 256, "transfers.%d.csv", id);
 
     FILE* transfers = fopen(transfers_file, "w");
@@ -62,12 +60,12 @@ void* run(void* data) {
     }
 
 egress:
-
     if (errno) {
         fprintf(stderr, "ERROR! %s\n", strerror(errno));
     }
 
     fclose(transfers);
+    free(buffer);
 
     return NULL;
 }
@@ -99,7 +97,6 @@ int main(size_t argc, char** argv) {
     }
 
 egress:
-
     if (errno) {
         fprintf(stderr, "ERROR! %s\n", strerror(errno));
     }
