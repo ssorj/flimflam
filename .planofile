@@ -66,6 +66,8 @@ standard_args = (
                     help="Warmup time in seconds"),
     CommandArgument("jobs", default=2, positional=False,
                     help="The number of concurrent client workloads"),
+    CommandArgument("buffer_size", default=16384, positional=False,
+                    help="XXX"),
 )
 
 @command
@@ -106,22 +108,20 @@ def build():
     run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
     run("gcc server.c -o server -g -O2 -std=c99 -fno-omit-frame-pointer")
 
-def run_outer(inner, jobs, warmup):
+def run_outer(inner, jobs, warmup, buffer_size):
     procs = list()
 
     with start(f"skrouterd --config {router1_config_file}") as router1: #, \
         # start(f"skrouterd --config {router2_config_file}") as router2:
         await_port(45673)
 
-        procs.append(start("./server"))
+        procs.append(start(f"./server 45674 {buffer_size}"))
 
         # Without a sleep here, the router closes the client
         # connections because the server isn't ready yet.
         sleep(1)
 
-        procs.append(start(f"./client {jobs}"))
-
-        # sleep(1)
+        procs.append(start(f"./client 45673 {buffer_size} {jobs}"))
 
         pids = [router1.pid] + [x.pid for x in procs]
         pids = ",".join([str(x) for x in pids])
@@ -152,7 +152,7 @@ def print_transfers(duration):
     pass
 
 @command(args=standard_args)
-def stat(jobs, duration, warmup):
+def stat(jobs, duration, warmup, buffer_size):
     """
     Run the workload and capture 'perf stat' output
     """
@@ -162,14 +162,14 @@ def stat(jobs, duration, warmup):
         def inner(router1, router2):
             run(f"perf stat --detailed --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
         print(read(output))
 
 @command(args=standard_args)
-def flamegraph(jobs, duration, warmup):
+def flamegraph(jobs, duration, warmup, buffer_size):
     """
     Run the workload and generate a flamegraph
     """
@@ -187,14 +187,14 @@ def flamegraph(jobs, duration, warmup):
 
             run(f"perf script flamegraph --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", stdout=output)
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
         print(read(output))
 
 @command(args=standard_args)
-def record(jobs, duration, warmup):
+def record(jobs, duration, warmup, buffer_size):
     """
     Run the workload and capture perf events using 'perf record'
     """
@@ -204,14 +204,14 @@ def record(jobs, duration, warmup):
         def inner(router1, router2):
             run(f"perf record --freq 997 --call-graph dwarf --pid {router1.pid} sleep {duration}")
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
     run("perf report --stdio --call-graph none --no-children --percent-limit 1")
 
 @command(args=standard_args)
-def c2c(jobs, duration, warmup):
+def c2c(jobs, duration, warmup, buffer_size):
     """
     Run the workload and capture perf events using 'perf c2c'
     """
@@ -221,14 +221,14 @@ def c2c(jobs, duration, warmup):
         def inner(router1, router2):
             run(f"perf c2c record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
         print(read(output))
 
 @command(args=standard_args)
-def mem(jobs, duration, warmup):
+def mem(jobs, duration, warmup, buffer_size):
     """
     Run the workload and capture perf events using 'perf mem'
     """
@@ -238,7 +238,7 @@ def mem(jobs, duration, warmup):
         def inner(router1, router2):
             run(f"perf mem record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
@@ -247,7 +247,7 @@ def mem(jobs, duration, warmup):
     run("perf mem report --stdio --call-graph none --no-children --percent-limit 1")
 
 @command(args=standard_args)
-def sleep_(jobs, duration, warmup):
+def sleep_(jobs, duration, warmup, buffer_size):
     """
     XXX
     """
@@ -274,7 +274,7 @@ def sleep_(jobs, duration, warmup):
         def inner(router1, router2):
             run(f"perf record -e sched:sched_stat_sleep -e sched:sched_switch -e sched:sched_process_exit --call-graph dwarf --pid {router1.pid},{router2.pid} -o perf.data.raw sleep {duration}")
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 
@@ -285,7 +285,7 @@ def sleep_(jobs, duration, warmup):
         run("perf report --stdio --show-total-period -i perf.data --call-graph none --no-children --percent-limit 1")
 
 @command(args=standard_args)
-def skstat(jobs, duration, warmup):
+def skstat(jobs, duration, warmup, buffer_size):
     """
     Run the workload and capture 'skstat' output
     """
@@ -297,7 +297,7 @@ def skstat(jobs, duration, warmup):
             run(f"skstat -b localhost:20001 -m")
             # run(f"perf mem record --freq 997 --call-graph dwarf --pid {router1.pid},{router2.pid} sleep {duration}", output=output)
 
-        run_outer(inner, jobs, warmup)
+        run_outer(inner, jobs, warmup, buffer_size)
 
         print_transfers(duration + warmup)
 

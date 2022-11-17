@@ -9,89 +9,84 @@
 
 #define PORT 45674
 
-typedef struct thread_data {
-    int client_socket;
+typedef struct thread_context {
+    int socket;
     int buffer_size;
-} thread_data;
+} thread_context_t;
 
 void* run(void* data) {
-    int client_socket = ((thread_data*) data)->client_socket;
-    int buffer_size = ((thread_data*) data)->buffer_size;
+    int sock = ((thread_context_t*) data)->socket;
+    int buffer_size = ((thread_context_t*) data)->buffer_size;
     char* buffer = (char*) malloc(buffer_size);
 
     while (1) {
-        ssize_t received = recv(client_socket, buffer, buffer_size, 0);
+        ssize_t received = recv(sock, buffer, buffer_size, 0);
+        if (received == 0 || received < 0) break;
 
-        if (received == 0) goto cleanup;
-        if (received < 0) goto error;
-
-        ssize_t sent = send(client_socket, buffer, received, 0);
-
-        if (sent < 0) goto error;
+        ssize_t sent = send(sock, buffer, received, 0);
+        if (sent < 0) break;
     }
 
-error:
-    fprintf(stderr, "ERROR! %s\n", strerror(errno));
+    if (errno) {
+        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+    }
 
-cleanup:
-    close(client_socket);
+    close(sock);
     free(buffer);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 int main(size_t argc, char** argv) {
-    int server_socket = -1;
-    int err;
+    int port = atoi(argv[1]);
+    int buffer_size = atoi(argv[2]);
+
+    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_sock < 0) goto egress;
+
+    int opt = 1;
+    int err = setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (err) goto egress;
 
     struct sockaddr_in addr = (struct sockaddr_in) {
         0,
         .sin_family = AF_INET,
         .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
-        .sin_port = htons(PORT)
+        .sin_port = htons(port)
     };
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    err = bind(server_sock, (const struct sockaddr*) &addr, sizeof(addr));
+    if (err) goto egress;
 
-    if (server_socket < 0) goto error;
-
-    int opt = 1;
-    err = setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    if (err) goto error;
-
-    err = bind(server_socket, (const struct sockaddr*) &addr, sizeof(addr));
-
-    if (err) goto error;
-
-    printf("Bound!\n");
-
-    err = listen(server_socket, 1);
-
-    if (err) goto error;
+    err = listen(server_sock, 1);
+    if (err) goto egress;
 
     printf("Listening!\n");
 
     while (1) {
-        int client_socket = accept(server_socket, NULL, NULL);
+        int sock = accept(server_sock, NULL, NULL);
+        if (sock < 0) goto egress;
 
-        if (client_socket < 0) goto error;
+        printf("Accepted!\n");
 
         pthread_t* thread = malloc(sizeof(pthread_t));
-        thread_data* data = malloc(sizeof(thread_data));
+        thread_context_t* context = malloc(sizeof(thread_context_t));
 
-        *data = (thread_data) {
-            .client_socket = client_socket,
-            .buffer_size = 16384
+        *context = (thread_context_t) {
+            .socket = sock,
+            .buffer_size = buffer_size
         };
 
-        pthread_create(thread, NULL, &run, (void*) data);
+        pthread_create(thread, NULL, &run, (void*) context);
     }
 
-error:
-    fprintf(stderr, "ERROR! %s\n", strerror(errno));
+egress:
 
-    if (server_socket > 0) shutdown(server_socket, SHUT_RDWR);
+    if (errno) {
+        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+    }
 
-    exit(-1);
+    if (server_sock > 0) shutdown(server_sock, SHUT_RDWR);
+
+    exit(errno);
 }
