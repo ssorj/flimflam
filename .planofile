@@ -88,6 +88,8 @@ def clean():
     remove("server")
     remove("perf.data")
     remove("perf.data.old")
+    remove("perf.data.raw")
+    remove("perf.data.raw.old")
     remove("flamegraph.html")
     remove("flamegraph.html.old")
     remove(list_dir(".", "transfers.*.csv"))
