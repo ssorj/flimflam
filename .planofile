@@ -130,6 +130,7 @@ def run_outer(inner, jobs, warmup, buffer):
             for proc in procs:
                 kill(proc)
 
+def print_transfers(jobs, duration):
     total = 0
 
     for i in range(jobs):
@@ -142,9 +143,6 @@ def run_outer(inner, jobs, warmup, buffer):
             print("ERROR: Unexpected transfer value:", values)
 
     print(f">>> {total:,} bytes <<<")
-
-def print_transfers(duration):
-    pass
 
 @command(args=standard_args)
 def stat(jobs, duration, warmup, buffer):
@@ -159,9 +157,9 @@ def stat(jobs, duration, warmup, buffer):
 
         run_outer(inner, jobs, warmup, buffer)
 
-        print_transfers(duration + warmup)
-
         print(read(output))
+
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def flamegraph(jobs, duration, warmup, buffer):
@@ -183,9 +181,9 @@ def flamegraph(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print_transfers(duration + warmup)
-
     print(get_file_url("flamegraph.html"))
+
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def record(jobs, duration, warmup, buffer):
@@ -194,15 +192,14 @@ def record(jobs, duration, warmup, buffer):
     """
     build()
 
-    with temp_file() as output:
-        def inner(pids):
-            run(f"perf record --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
+    def inner(pids):
+        run(f"perf record --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
 
-        run_outer(inner, jobs, warmup, buffer)
-
-        print_transfers(duration + warmup)
+    run_outer(inner, jobs, warmup, buffer)
 
     run("perf report --stdio --call-graph none --no-children --percent-limit 1")
+
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def c2c(jobs, duration, warmup, buffer):
@@ -216,7 +213,7 @@ def c2c(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print_transfers(duration + warmup)
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def mem(jobs, duration, warmup, buffer):
@@ -230,9 +227,9 @@ def mem(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print_transfers(duration + warmup)
-
     run("perf mem report --stdio --call-graph none --no-children --percent-limit 1")
+
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def sleep_(jobs, duration, warmup, buffer):
@@ -260,10 +257,10 @@ def sleep_(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print_transfers(duration + warmup)
-
     run("perf inject -v --sched-stat -i perf.data.raw -o perf.data")
     run("perf report --stdio --show-total-period -i perf.data --call-graph none --no-children --percent-limit 1")
+
+    print_transfers(jobs, duration + warmup)
 
 @command(args=standard_args)
 def skstat(jobs, duration, warmup, buffer):
@@ -278,7 +275,7 @@ def skstat(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print_transfers(duration + warmup)
+    print_transfers(jobs, duration + warmup)
 
 @command
 def self_test():
