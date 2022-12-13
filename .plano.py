@@ -161,7 +161,7 @@ def print_transfers(jobs, duration):
         except IndexError:
             print("ERROR: Unexpected transfer value:", values)
 
-    print(f">>> {total:,} bytes <<<")
+    print(f"Transfers: >>> {total:,} bytes <<<")
 
 @command(args=standard_args)
 def stat(jobs, duration, warmup, buffer):
@@ -200,9 +200,9 @@ def flamegraph(jobs, duration, warmup, buffer):
 
     run_outer(inner, jobs, warmup, buffer)
 
-    print(get_file_url("flamegraph.html"))
-
     print_transfers(jobs, duration + warmup)
+
+    print("Next step: Look at {} in your browser".format(get_file_url("flamegraph.html")))
 
 @command(args=standard_args)
 def record(jobs, duration, warmup, buffer):
@@ -220,6 +220,8 @@ def record(jobs, duration, warmup, buffer):
 
     print_transfers(jobs, duration + warmup)
 
+    print("Next step: Run 'perf report --no-children'")
+
 @command(args=standard_args)
 def c2c(jobs, duration, warmup, buffer):
     """
@@ -228,11 +230,13 @@ def c2c(jobs, duration, warmup, buffer):
     build()
 
     def inner(pids):
-        run(f"perf c2c record --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
+        run(f"perf c2c record --freq 997 --call-graph lbr --pid {pids} sleep {duration}")
 
     run_outer(inner, jobs, warmup, buffer)
 
     print_transfers(jobs, duration + warmup)
+
+    print("Next step: Run 'perf c2c report'")
 
 @command(args=standard_args)
 def mem(jobs, duration, warmup, buffer):
@@ -249,6 +253,8 @@ def mem(jobs, duration, warmup, buffer):
     run("perf mem report --stdio --call-graph none --no-children --percent-limit 1")
 
     print_transfers(jobs, duration + warmup)
+
+    print("Next step: Run 'perf mem report --no-children'")
 
 @command(args=standard_args)
 def sleep_(jobs, duration, warmup, buffer):
