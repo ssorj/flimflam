@@ -17,6 +17,8 @@
 # under the License.
 #
 
+from plano import *
+
 router1_config = """
 router {
     mode: interior
