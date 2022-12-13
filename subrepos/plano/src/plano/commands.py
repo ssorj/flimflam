@@ -21,8 +21,6 @@ from .main import *
 from .main import _capitalize_help
 
 import argparse as _argparse
-import code as _code
-import collections as _collections
 import importlib as _importlib
 import inspect as _inspect
 import os as _os
@@ -91,26 +89,25 @@ class PlanoTestCommand(BaseCommand):
 _plano_command = None
 
 class PlanoCommand(BaseCommand):
-    def __init__(self, planofile=None):
-        self.planofile = planofile
+    def __init__(self, module=None, description="Run commands defined as Python functions", epilog=None):
+        self.module = module
+        self.bound_commands = dict()
+        self.running_commands = list()
+        self.passthrough_args = None
 
-        description = "Run commands defined as Python functions"
+        assert self.module is None or _inspect.ismodule(self.module), self.module
 
         self.pre_parser = BaseArgumentParser(description=description, add_help=False)
         self.pre_parser.add_argument("-h", "--help", action="store_true",
                                      help="Show this help message and exit")
 
-        if self.planofile is None:
-            self.pre_parser.add_argument("-f", "--file",
-                                         help="Load commands from FILE (default 'Planofile' or '.plano.py')")
+        if self.module is None:
+            self.pre_parser.add_argument("-f", "--file", help="Load commands from FILE (default '.plano.py')")
+            self.pre_parser.add_argument("-m", "--module", help="Load commands from MODULE")
 
         self.parser = _argparse.ArgumentParser(parents=(self.pre_parser,),
-                                               description=description, add_help=False, allow_abbrev=False)
-
-        self.bound_commands = _collections.OrderedDict()
-        self.running_commands = list()
-
-        self.passthrough_args = None
+                                               description=description, epilog=epilog,
+                                               add_help=False, allow_abbrev=False)
 
         global _plano_command
         _plano_command = self
@@ -118,7 +115,15 @@ class PlanoCommand(BaseCommand):
     def parse_args(self, args):
         pre_args, _ = self.pre_parser.parse_known_args(args)
 
-        self._load_config(getattr(pre_args, "file", None))
+        if self.module is None:
+            if pre_args.module is None:
+                self.module = self._load_file(pre_args.file)
+            else:
+                self.module = self._load_module(pre_args.module)
+
+        if self.module is not None:
+            self._bind_commands(self.module)
+
         self._process_commands()
 
         args, self.passthrough_args = self.parser.parse_known_args(args)
@@ -154,7 +159,7 @@ class PlanoCommand(BaseCommand):
                 self.command_kwargs["passthrough_args"] = self.passthrough_args
 
     def run(self):
-        if self.help or self.selected_command is None:
+        if self.help or self.module is None or self.selected_command is None:
             self.parser.print_help()
             return
 
@@ -164,50 +169,53 @@ class PlanoCommand(BaseCommand):
         cprint("OK", color="green", file=_sys.stderr, end="")
         cprint(" ({})".format(format_duration(timer.elapsed_time)), color="magenta", file=_sys.stderr)
 
-    def _bind_commands(self, scope):
-        for var in scope.values():
-            if callable(var) and var.__class__.__name__ == "Command":
-                self.bound_commands[var.name] = var
+    def _load_module(self, name):
+        try:
+            return _importlib.import_module(name)
+        except ImportError:
+            exit("Module '{}' not found", name)
 
-    def _load_config(self, planofile):
-        if planofile is None:
-            planofile = self.planofile
+    def _load_file(self, path):
+        if path is not None and is_dir(path):
+            path = self._find_file(path)
 
-        if planofile is not None and is_dir(planofile):
-            planofile = self._find_planofile(planofile)
+        if path is not None and not is_file(path):
+            exit("File '{}' not found", path)
 
-        if planofile is not None and not is_file(planofile):
-            exit("Planofile '{}' not found", planofile)
+        if path is None:
+            path = self._find_file(get_current_dir())
 
-        if planofile is None:
-            planofile = self._find_planofile(get_current_dir())
-
-        if planofile is None:
+        if path is None:
             return
 
-        debug("Loading '{}'", planofile)
+        debug("Loading '{}'", path)
 
-        _sys.path.insert(0, join(get_parent_dir(planofile), "python"))
+        _sys.path.insert(0, join(get_parent_dir(path), "python"))
 
-        scope = dict(globals())
-        scope["app"] = _plano_command
+        spec = _importlib.util.spec_from_file_location("_plano", path)
+        module = _importlib.util.module_from_spec(spec)
+        _sys.modules["_plano"] = module
 
         try:
-            with open(planofile) as f:
-                exec(f.read(), scope)
+            spec.loader.exec_module(module)
         except Exception as e:
             error(e)
-            exit("Failure loading {}: {}", repr(planofile), str(e))
+            exit("Failure loading {}: {}", path, str(e))
 
-        self._bind_commands(scope)
+        return module
 
-    def _find_planofile(self, dir):
-        # XXX .planofile remains temporarily for backward compatibility
-        for name in ("Planofile", ".plano.py", ".planofile"):
+    def _find_file(self, dir):
+        # Planofile and .planofile remain temporarily for backward compatibility
+        for name in (".plano.py", "Planofile", ".planofile"):
             path = join(dir, name)
 
             if is_file(path):
                 return path
+
+    def _bind_commands(self, module):
+        for var in vars(module).values():
+            if callable(var) and var.__class__.__name__ == "Command":
+                self.bound_commands[var.name] = var
 
     def _process_commands(self):
         subparsers = self.parser.add_subparsers(title="commands", dest="command")
@@ -296,7 +304,7 @@ class PlanoShellCommand(BaseCommand):
             exec(script, globals())
 
         if (self.command is None and self.file is None and stdin_isatty) or self.interactive: # pragma: nocover
-            _code.InteractiveConsole(locals=globals()).interact()
+            repl(locals=globals())
 
 def plano(): # pragma: nocover
     PlanoCommand().main()

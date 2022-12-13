@@ -143,7 +143,7 @@ class BaseCommand:
     def main(self, args=None):
         args = self.parse_args(args)
 
-        assert args is None or isinstance(args, _argparse.Namespace), args
+        assert isinstance(args, _argparse.Namespace), args
 
         self.verbose = args.verbose or args.debug
         self.quiet = args.quiet
@@ -313,8 +313,8 @@ except NameError: # pragma: nocover
         import pdb
         pdb.set_trace()
 
-def repl(vars): # pragma: nocover
-    _code.InteractiveConsole(locals=vars).interact()
+def repl(locals): # pragma: nocover
+    _code.InteractiveConsole(locals=locals).interact()
 
 def print_properties(props, file=None):
     size = max([len(x[0]) for x in props])
@@ -847,8 +847,8 @@ def http_post_json(url, data, insecure=False):
 
 ## Link operations
 
-def make_link(path, linked_path, quiet=False):
-    _info(quiet, "Making link {} to {}", repr(path), repr(linked_path))
+def make_link(path: str, linked_path: str, quiet=False) -> str:
+    _info(quiet, "Making symlink {} to {}", repr(path), repr(linked_path))
 
     make_parent_dir(path, quiet=True)
     remove(path, quiet=True)
@@ -1928,7 +1928,7 @@ def _run_test(test_run, test, unskipped):
     if test_run.verbose:
         notice("Running {}", test)
     elif not test_run.quiet:
-        print("{:.<72} ".format(test.name + " "), end="")
+        print("{:.<65} ".format(test.name + " "), end="")
 
     timeout = nvl(test.timeout, test_run.test_timeout)
 
@@ -2111,10 +2111,9 @@ def command(_function=None, name=None, args=None, parent=None, passthrough=False
 
         def __call__(self, *args, **kwargs):
             from .commands import _plano_command, PlanoCommand
+            assert isinstance(_plano_command, PlanoCommand), _plano_command
+
             app = _plano_command
-
-            assert isinstance(app, PlanoCommand), app
-
             command = app.bound_commands[self.name]
 
             if command is not self:
@@ -2184,6 +2183,15 @@ def command(_function=None, name=None, args=None, parent=None, passthrough=False
         return Command
     else:
         return Command(_function)
+
+def parent(*args, **kwargs):
+    try:
+        f_locals = _inspect.stack()[2].frame.f_locals
+        parent_fn = f_locals["self"].parent.function
+    except:
+        fail("Missing parent command")
+
+    parent_fn(*args, **kwargs)
 
 class CommandArgument:
     def __init__(self, name, display_name=None, type=None, metavar=None, help=None, short_option=None, default=None, positional=None):
