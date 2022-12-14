@@ -264,7 +264,7 @@ def sleep_(jobs, duration, warmup, buffer):
     try:
         read("/sys/kernel/tracing/events/sched/sched_stat_sleep/enable")
     except:
-        fail("Things aren't set up yet.  See the comments in .planofile for the sleep command.")
+        fail("Things aren't set up yet.  See the comments in .plano.py for the sleep command.")
 
         # Need:
         #
