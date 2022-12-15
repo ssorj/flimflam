@@ -196,7 +196,7 @@ def flamegraph(jobs, duration, warmup, buffer):
         if exists("flamegraph.html"):
             move("flamegraph.html", "flamegraph.html.old")
 
-        run(f"perf script flamegraph --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
+        run(f"perf script flamegraph --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
 
     run_outer(inner, jobs, warmup, buffer)
 
@@ -212,7 +212,7 @@ def record(jobs, duration, warmup, buffer):
     build()
 
     def inner(pids):
-        run(f"perf record --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
+        run(f"perf record --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
 
     run_outer(inner, jobs, warmup, buffer)
 
@@ -230,7 +230,7 @@ def c2c(jobs, duration, warmup, buffer):
     build()
 
     def inner(pids):
-        run(f"perf c2c record --freq 997 --call-graph lbr --pid {pids} sleep {duration}")
+        run(f"perf c2c record --freq 97 --call-graph lbr --pid {pids} sleep {duration}")
 
     run_outer(inner, jobs, warmup, buffer)
 
@@ -246,7 +246,7 @@ def mem(jobs, duration, warmup, buffer):
     build()
 
     def inner(pids):
-        run(f"perf mem record --freq 997 --call-graph dwarf --pid {pids} sleep {duration}")
+        run(f"perf mem record --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
 
     run_outer(inner, jobs, warmup, buffer)
 
