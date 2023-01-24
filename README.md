@@ -1,18 +1,31 @@
 # Flimflam
 
-Flimflam is a tool for testing Skupper router performance.  It
+Flimflam is a tool for examining Skupper router performance.  It
 combines a standard workload with scripting to capture metrics using
-the "perf" tools.
+the Linux "perf" tools.
 
-## Try it!
+## Things to know
 
-    $ ./plano         # Prints help
-    $ ./plano stat
-    $ ./plano flamegraph
+* Flimflam uses the skrouterd (or nginx) on your path.
+* Relays
+* Workloads
+* ./plano --help
+* ./plano check
+* ./plano run
+* ./plano stat
+* ./plano record
+* ./plano flamegraph
+* ./plano bench
+* Frame pointers
+* Tips for using 'perf report'
 
 ## Installing dependencies
 
-    dnf install gcc js-d3-flame-graph perf qpid-proton-c-devel sysstat
+    # Required
+    dnf install gcc js-d3-flame-graph perf sysstat util-linux-core
+
+    # For alternative workloads and relays
+    dnf install iperf3 nghttp2 nginx nginx-mod-stream
 
 ## Drilling into the recorded data
 

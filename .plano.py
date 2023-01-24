@@ -17,70 +17,19 @@
 # under the License.
 #
 
-from plano import *
+from flimflam import *
 
-router1_config = """
-router {
-    mode: interior
-    id: router1
-}
-
-listener {
-    host: localhost
-    port: 20001
-    saslMechanisms: ANONYMOUS
-}
-
-connector {
-   host: localhost
-   port: 45672
-   role: inter-router
-}
-
-tcpListener {
-    address: flimflam/tcp
-    host: localhost
-    port: 45673
-}
-"""
-
-router2_config = """
-router {
-    mode: interior
-    id: router2
-}
-
-listener {
-    host: localhost
-    port: 20002
-    saslMechanisms: ANONYMOUS
-}
-
-listener {
-    host: localhost
-    port: 45672
-    role: inter-router
-}
-
-tcpConnector {
-    address: flimflam/tcp
-    host: localhost
-    port: 45674
-}
-"""
-
-router1_config_file = write(make_temp_file(), router1_config)
-router2_config_file = write(make_temp_file(), router2_config)
-
-standard_args = (
-    CommandArgument("duration", default=5, positional=False,
-                    help="The time to run (excluding warmup) in seconds"),
-    CommandArgument("warmup", default=5, positional=False,
-                    help="Warmup time in seconds"),
-    CommandArgument("jobs", default=2, positional=False,
-                    help="The number of concurrent client workloads"),
-    CommandArgument("buffer", default=16384, positional=False, metavar="SIZE",
-                    help="The TCP send and receive buffer size in bytes"),
+standard_parameters = (
+    CommandParameter("relay", default="skrouterd", positional=False,
+                     help="The intermediary standing between the workload client and server"),
+    CommandParameter("workload", default="builtin", positional=False, short_option="w",
+                     help="The selected workload"),
+    CommandParameter("jobs", default=2, type=int, positional=False,
+                     help="The number of concurrent workload client jobs"),
+    CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
+                     help="The warmup time in seconds"),
+    CommandParameter("duration", default=5, type=int, positional=False, metavar="SECONDS",
+                     help="The execution time (excluding warmup) in seconds"),
 )
 
 @command
@@ -88,103 +37,153 @@ def check():
     """
     Check for required programs and system configuration
     """
+
     check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
     check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
-    check_program("skrouterd", "I can't find skrouterd.  Make sure it is on the path.")
+    check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
     perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
 
     if perf_event_paranoid != "-1\n":
         exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
 
-@command
-def clean():
-    """
-    Remove build artifacts and output files
-    """
-    remove("client")
-    remove("server")
-    remove("perf.data")
-    remove("perf.data.old")
-    remove("perf.data.raw")
-    remove("perf.data.raw.old")
-    remove("flamegraph.html")
-    remove("flamegraph.html.old")
-    remove(list_dir(".", "transfers.*.csv"))
+    print_heading("Note!")
+    print("To reliably get stack traces, it is important to compile with frame pointers.")
+    print("Use CFLAGS=-fno-omit-frame-pointer when compiling.")
+    print()
 
 @command
 def build():
     """
-    Compile the load generator
+    Compile the builtin workload
     """
+
     check()
 
     run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
     run("gcc server.c -o server -g -O2 -std=c99 -fno-omit-frame-pointer")
 
-def run_outer(inner, jobs, warmup, buffer):
-    procs = list()
+def run_and_print_summary(kwargs, capture=None):
+    if capture is None:
+        def capture(pid1, pid2, duration):
+            sleep(duration)
 
-    with start(f"skrouterd --config {router1_config_file}") as router1, \
-         start(f"skrouterd --config {router2_config_file}") as router2:
-        await_port(45673)
+    runner = Runner(kwargs)
 
-        procs.append(start(f"./server 45674 {buffer}"))
+    output_dir = runner.run(capture)
 
-        # Without a sleep here, the router closes the client
-        # connections because the server isn't ready yet.
-        sleep(1)
+    runner.print_summary()
 
-        procs.append(start(f"./client 45673 {buffer} {jobs}"))
+    return output_dir
 
-        pids = [router1.pid, router2.pid] + [x.pid for x in procs]
-        pids = ",".join([str(x) for x in pids])
+@command(parameters=standard_parameters)
+def run_(*args, **kwargs):
+    """
+    Run the workload and relays without capturing perf data
+    """
 
-        try:
-            with start(f"pidstat 2 --human -t -p {pids}"):
-                sleep(warmup)
-                inner(pids)
-        finally:
-            for proc in procs:
-                kill(proc)
+    build()
 
-def print_transfers(jobs, duration):
-    total = 0
+    run_and_print_summary(kwargs)
+    print()
 
-    for i in range(jobs):
-        line = tail(f"transfers.{i}.csv", 1)
-        values = line.split(",", 2)
-
-        try:
-            total += int(values[2])
-        except IndexError:
-            print("ERROR: Unexpected transfer value:", values)
-
-    print(f"Transfers: >>> {total:,} bytes <<<")
-
-@command(args=standard_args)
-def stat(jobs, duration, warmup, buffer):
+@command(parameters=standard_parameters)
+def stat(*args, **kwargs):
     """
     Capture 'perf stat' output
     """
+
     build()
 
     with temp_file() as output:
-        def inner(pids):
-            run(f"perf stat --detailed --pid {pids} sleep {duration}", output=output)
+        def capture(pid1, pid2, duration):
+            run(f"perf stat --detailed --pid {pid1},{pid2} sleep {duration}", output=output)
 
-        run_outer(inner, jobs, warmup, buffer)
-
+        run_and_print_summary(kwargs, capture)
         print(read(output))
 
-    print_transfers(jobs, duration + warmup)
+@command(parameters=standard_parameters)
+def skstat(*args, **kwargs):
+    """
+    Capture 'skstat' output
+    """
 
-@command(args=standard_args)
-def flamegraph(jobs, duration, warmup, buffer):
+    if kwargs["relay"] != "skrouterd":
+        fail("The skstat command works with skrouterd only")
+
+    build()
+
+    with temp_file() as output1, temp_file() as output2:
+        def capture(pid1, pid2, duration):
+            sleep(duration)
+            run(f"skstat -b localhost:56721 -m", stdout=output1)
+            run(f"skstat -b localhost:56722 -m", stdout=output2)
+
+        run_and_print_summary(kwargs, capture)
+
+        print_heading("Router 1")
+        print(read(output1))
+        print_heading("Router 2")
+        print(read(output2))
+
+@command(parameters=standard_parameters)
+def record(*args, **kwargs):
+    """
+    Capture perf events using 'perf record'
+    """
+
+    build()
+
+    def capture(pid1, pid2, duration):
+        run(f"perf record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+
+    run_and_print_summary(kwargs, capture)
+
+    print_heading("Next step")
+    print("Run 'perf report --no-children'")
+    print()
+
+@command(parameters=standard_parameters)
+def c2c(*args, **kwargs):
+    """
+    Capture perf events using 'perf c2c'
+    """
+
+    build()
+
+    def capture(pid1, pid2, duration):
+        run(f"perf c2c record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+
+    run_and_print_summary(kwargs, capture)
+
+    print_heading("Next step")
+    print("Run 'perf c2c report'")
+    print()
+
+@command(parameters=standard_parameters)
+def mem(*args, **kwargs):
+    """
+    Capture perf events using 'perf mem'
+    """
+
+    build()
+
+    def capture(pid1, pid2, duration):
+        run(f"perf mem record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+
+    run_and_print_summary(kwargs, capture)
+
+    print_heading("Next step")
+    print("Run 'perf mem report --no-children'")
+    print()
+
+@command(parameters=standard_parameters)
+def flamegraph(*args, **kwargs):
     """
     Generate a flamegraph
     """
+
     try:
         check_exists("/usr/share/d3-flame-graph")
     except:
@@ -192,122 +191,87 @@ def flamegraph(jobs, duration, warmup, buffer):
 
     build()
 
-    def inner(pids):
-        if exists("flamegraph.html"):
-            move("flamegraph.html", "flamegraph.html.old")
+    if exists("flamegraph.html"):
+        move("flamegraph.html", "old.flamegraph.html")
 
-        run(f"perf script flamegraph --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
+    def capture(pid1, pid2, duration):
+        run(f"perf script flamegraph --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    run_outer(inner, jobs, warmup, buffer)
+    run_and_print_summary(kwargs, capture)
 
-    print_transfers(jobs, duration + warmup)
+    print_heading("Next step")
 
-    print("Next step: Look at {} in your browser".format(get_file_url("flamegraph.html")))
+    print("Go to {} in your browser".format(get_file_url("flamegraph.html")))
+    print()
 
-@command(args=standard_args)
-def record(jobs, duration, warmup, buffer):
+@command(parameters=standard_parameters[2:])
+def bench(*args, **kwargs):
     """
-    Capture perf events using 'perf record'
+    Run each workload on each relay and summarize the results
     """
-    build()
-
-    def inner(pids):
-        run(f"perf record --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
-
-    run_outer(inner, jobs, warmup, buffer)
-
-    run("perf report --stdio --call-graph none --no-children --percent-limit 1")
-
-    print_transfers(jobs, duration + warmup)
-
-    print("Next step: Run 'perf report --no-children'")
-
-@command(args=standard_args)
-def c2c(jobs, duration, warmup, buffer):
-    """
-    Capture perf events using 'perf c2c'
-    """
-    build()
-
-    def inner(pids):
-        run(f"perf c2c record --freq 97 --call-graph lbr --pid {pids} sleep {duration}")
-
-    run_outer(inner, jobs, warmup, buffer)
-
-    print_transfers(jobs, duration + warmup)
-
-    print("Next step: Run 'perf c2c report'")
-
-@command(args=standard_args)
-def mem(jobs, duration, warmup, buffer):
-    """
-    Capture perf events using 'perf mem'
-    """
-    build()
-
-    def inner(pids):
-        run(f"perf mem record --freq 97 --call-graph dwarf --pid {pids} sleep {duration}")
-
-    run_outer(inner, jobs, warmup, buffer)
-
-    run("perf mem report --stdio --call-graph none --no-children --percent-limit 1")
-
-    print_transfers(jobs, duration + warmup)
-
-    print("Next step: Run 'perf mem report --no-children'")
-
-@command(args=standard_args)
-def sleep_(jobs, duration, warmup, buffer):
-    """
-    Measure time sleeping
-    """
-    try:
-        read("/sys/kernel/tracing/events/sched/sched_stat_sleep/enable")
-    except:
-        fail("Things aren't set up yet.  See the comments in .plano.py for the sleep command.")
-
-        # Need:
-        #
-        # sudo chmod -R o+r /sys/kernel/tracing
-        # sudo find /sys/kernel/tracing -type d -exec chmod o+x {} \;
-        #
-        # And:
-        #
-        # sudo sysctl kernel.sched_schedstats=1
 
     build()
 
-    def inner(pids):
-        run(f"perf record -e sched:sched_stat_sleep -e sched:sched_switch -e sched:sched_process_exit --call-graph dwarf --pid {pids} -o perf.data.raw sleep {duration}")
+    data = [["Workload", "Relay", "Bits/s", "Ops/s", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
-    run_outer(inner, jobs, warmup, buffer)
+    for workload in workloads:
+        for relay in relays:
+            kwargs["relay"] = relay
+            kwargs["workload"] = workload
 
-    run("perf inject -v --sched-stat -i perf.data.raw -o perf.data")
-    run("perf report --stdio --show-total-period -i perf.data --call-graph none --no-children --percent-limit 1")
+            output_dir = run_and_print_summary(kwargs)
+            print()
 
-    print_transfers(jobs, duration + warmup)
+            summary = read_json(join(output_dir, "summary.json"))
+            results = summary["results"]
+            bps = None
+            ops = None
 
-@command(args=standard_args)
-def skstat(jobs, duration, warmup, buffer):
-    """
-    Capture 'skstat' output
-    """
-    build()
+            if "octets" in results:
+                bps = format_quantity(results["octets"] * 8 / results["duration"])
 
-    def inner(pids):
-        run(f"sleep {duration}")
-        run(f"skstat -b localhost:20001 -m")
+            if "operations" in results:
+                ops = format_quantity(results["operations"] / results["duration"])
 
-    run_outer(inner, jobs, warmup, buffer)
+            if "resources" in summary:
+                r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
+                r1rss = format_quantity(summary["resources"]["relay_1"]["max_rss"], mode="binary")
+                r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
+                r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
+            else:
+                r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
 
-    print_transfers(jobs, duration + warmup)
+            data.append([workload, relay, bps, ops, r1cpu, r1rss, r2cpu, r2rss])
+
+    print("---")
+    print_heading("Benchmark results")
+    print_table(data, "llr")
+    print()
 
 @command
+def clean():
+    """
+    Remove build artifacts and output files
+    """
+
+    remove("client")
+    remove("server")
+    remove("perf.data")
+    remove("perf.data.old")
+    remove("flamegraph.html")
+    remove("old.flamegraph.html")
+    remove(list_dir(".", "transfers.*.csv"))
+    remove(find(".", "__pycache__"))
+
+@command(hidden=True)
 def self_test():
-    """
-    Test Flimflam
-    """
-    flamegraph(duration=1, warmup=0.1, jobs=1, buffer=16384)
-    stat(duration=1, warmup=0.1, jobs=1, buffer=16384)
-    record(duration=1, warmup=0.1, jobs=1, buffer=16384)
+    for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
+        globals()[name](relay="skrouterd", workload="builtin", duration=1, warmup=1, jobs=1)
+
+    for relay in relays.keys():
+        run_(relay=relay, workload="builtin", duration=1, warmup=1, jobs=1)
+
+    for workload in workloads.keys():
+        run_(relay="none", workload=workload, duration=1, warmup=1, jobs=1)
+
     clean()

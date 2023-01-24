@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,23 +8,29 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define BUFFER_SIZE 16384
+
 typedef struct thread_context {
     int socket;
-    int buffer_size;
 } thread_context_t;
 
 void* run(void* data) {
     int sock = ((thread_context_t*) data)->socket;
-    int buffer_size = ((thread_context_t*) data)->buffer_size;
-    char* buffer = (char*) malloc(buffer_size);
+    char* buffer = (char*) malloc(BUFFER_SIZE);
+
+    int opt = 1;
+    int err = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void*) &opt, sizeof(opt));
+    if (err) goto egress;
 
     while (1) {
-        ssize_t received = recv(sock, buffer, buffer_size, 0);
-        if (received == 0 || received < 0) break;
+        ssize_t received = recv(sock, buffer, BUFFER_SIZE, 0);
+        if (received == 0 || received < 0) goto egress;
 
         ssize_t sent = send(sock, buffer, received, 0);
-        if (sent < 0) break;
+        if (sent < 0) goto egress;
     }
+
+egress:
 
     if (errno) {
         fprintf(stderr, "ERROR! %s\n", strerror(errno));
@@ -36,8 +43,12 @@ void* run(void* data) {
 }
 
 int main(size_t argc, char** argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: server PORT\n");
+        return 1;
+    }
+
     int port = atoi(argv[1]);
-    int buffer_size = atoi(argv[2]);
 
     int server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock < 0) goto egress;
@@ -72,18 +83,20 @@ int main(size_t argc, char** argv) {
 
         *context = (thread_context_t) {
             .socket = sock,
-            .buffer_size = buffer_size
         };
 
         pthread_create(thread, NULL, &run, (void*) context);
     }
 
 egress:
+
     if (errno) {
         fprintf(stderr, "ERROR! %s\n", strerror(errno));
     }
 
-    if (server_sock > 0) shutdown(server_sock, SHUT_RDWR);
+    if (server_sock > 0) {
+        shutdown(server_sock, SHUT_RDWR);
+    }
 
-    exit(errno);
+    return errno;
 }

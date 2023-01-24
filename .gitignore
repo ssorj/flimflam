@@ -3,4 +3,5 @@
 /perf.data*
 /flamegraph.html*
 /transfers.*.csv*
+/old.*
 __pycache__/

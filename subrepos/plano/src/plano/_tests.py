@@ -29,10 +29,9 @@ try:
 except ImportError: # pragma: nocover
     import BaseHTTPServer as _http
 
-from .main import *
-from .commands import *
+from .test import *
 
-test_project_dir = join(get_parent_dir(__file__), "testproject")
+test_project_dir = join(get_parent_dir(__file__), "_testproject")
 
 class test_project(working_dir):
     def __enter__(self):
@@ -1098,7 +1097,7 @@ def plano_command():
 
     PlanoCommand(_sys.modules[__name__]).main([])
 
-    PlanoCommand().main(["-m", "plano.tests"])
+    PlanoCommand().main(["-m", "plano.test"])
 
     with expect_system_exit():
         PlanoCommand().main(["-m", "nosuchmodule"])
@@ -1169,6 +1168,18 @@ def plano_command():
         result = read_json("balderdash.json")
         assert result == ["bunk", "malarkey", "bollocks"], result
 
+        run_command("splasher,balderdash", "claptrap")
+        result = read_json("splasher.json")
+        assert result == [1], result
+        result = read_json("balderdash.json")
+        assert result == ["claptrap", "malarkey", "rubbish"], result
+
+        with expect_system_exit():
+            run_command("no-such-command,splasher")
+
+        with expect_system_exit():
+            run_command("splasher,no-such-command-nope")
+
         run_command("dasher", "alpha", "--beta", "123")
 
         # Gamma is an unexpected arg
@@ -1187,22 +1198,13 @@ def plano_command():
         with expect_system_exit():
             run_command("no-parent")
 
-@test
-def planosh_command():
-    with working_dir():
-        write("script1", "garbage")
+        run_command("feta", "--spinach", "oregano")
+        result = read_json("feta.json")
+        assert result == "oregano"
 
-        with expect_exception(NameError):
-            PlanoShellCommand().main(["script1"])
-
-        write("script2", "print_env()")
-
-        PlanoShellCommand().main(["script2"])
-
-        PlanoShellCommand().main(["--command", "print_env()"])
-
-    with expect_system_exit():
-        PlanoShellCommand().main(["no-such-file"])
+        run_command("invisible")
+        result = read_json("invisible.json")
+        assert result == "nothing"
 
 def main():
     PlanoTestCommand(_sys.modules[__name__]).main()
