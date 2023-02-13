@@ -84,6 +84,7 @@ def run_(*args, **kwargs):
     Run the workload and relays without capturing perf data
     """
 
+    check(ignore_perf_config=True)
     build()
 
     run_and_print_summary(kwargs)
@@ -95,6 +96,7 @@ def stat(*args, **kwargs):
     Capture 'perf stat' output
     """
 
+    check()
     build()
 
     with temp_file() as output:
@@ -113,6 +115,7 @@ def skstat(*args, **kwargs):
     if kwargs["relay"] != "skrouterd":
         fail("The skstat command works with skrouterd only")
 
+    check(ignore_perf_config=True)
     build()
 
     with temp_file() as output1, temp_file() as output2:
@@ -134,6 +137,7 @@ def record(*args, **kwargs):
     Capture perf events using 'perf record'
     """
 
+    check()
     build()
 
     def capture(pid1, pid2, duration):
@@ -151,6 +155,7 @@ def c2c(*args, **kwargs):
     Capture perf events using 'perf c2c'
     """
 
+    check()
     build()
 
     def capture(pid1, pid2, duration):
@@ -168,6 +173,7 @@ def mem(*args, **kwargs):
     Capture perf events using 'perf mem'
     """
 
+    check()
     build()
 
     def capture(pid1, pid2, duration):
@@ -190,6 +196,7 @@ def flamegraph(*args, **kwargs):
     except:
         fail("I can't find d3-flame-graph.  Run 'dnf install js-d3-flame-graph'.")
 
+    check()
     build()
 
     if exists("flamegraph.html"):
@@ -211,6 +218,7 @@ def bench(*args, **kwargs):
     Run each workload on each relay and summarize the results
     """
 
+    check(ignore_perf_config=True)
     build()
 
     data = [["Workload", "Relay", "Bits/s", "Ops/s", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
