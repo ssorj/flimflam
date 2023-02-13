@@ -60,7 +60,7 @@ def build():
     Compile the builtin workload
     """
 
-    check()
+    check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
 
     run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
     run("gcc server.c -o server -g -O2 -std=c99 -fno-omit-frame-pointer")
