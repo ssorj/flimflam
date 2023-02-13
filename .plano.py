@@ -25,7 +25,7 @@ standard_parameters = (
     CommandParameter("workload", default="builtin", positional=False, short_option="w",
                      help="The selected workload"),
     CommandParameter("jobs", default=2, type=int, positional=False,
-                     help="The number of concurrent workload client jobs"),
+                     help="The number of concurrent workload jobs"),
     CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
                      help="The warmup time in seconds"),
     CommandParameter("duration", default=5, type=int, positional=False, metavar="SECONDS",
