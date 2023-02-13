@@ -43,10 +43,11 @@ def check(ignore_perf_config=False):
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
     check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
-    perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
+    if not ignore_perf_config:
+        perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
 
-    if perf_event_paranoid != "-1\n":
-        exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
+        if perf_event_paranoid != "-1\n":
+            exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
 
     print_heading("Note!")
     print("To reliably get stack traces, it is important to compile with frame pointers.")
