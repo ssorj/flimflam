@@ -13,4 +13,5 @@ jobs:
       - run: dnf -y install gcc js-d3-flame-graph perf sysstat util-linux-core
       - run: dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
       - run: echo -1 > /proc/sys/kernel/perf_event_paranoid
-      - run: ./plano check
+      - run: ./plano check --ignore-perf-config
+      - run: ./plano build

@@ -33,7 +33,7 @@ standard_parameters = (
 )
 
 @command
-def check():
+def check(ignore_perf_config=False):
     """
     Check for required programs and system configuration
     """

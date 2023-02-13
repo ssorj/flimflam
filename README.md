@@ -23,11 +23,11 @@ the Linux "perf" tools.
 
 Install required dependencies:
 
-    dnf -y install gcc js-d3-flame-graph perf sysstat util-linux-core
+    sudo dnf -y install gcc js-d3-flame-graph perf sysstat util-linux-core
 
 Install dependencies for alternative workloads and relays:
 
-    dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
+    sudo dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
 
 Enable perf events (run this as root):
 
