@@ -17,4 +17,5 @@ jobs:
       - run: dnf -y install cmake cyrus-sasl-devel cyrus-sasl-plain gcc-c++ git make libnghttp2-devel libuuid-devel libwebsockets-devel openssl-devel python-devel
       - run: sh scripts/install-skupper-router.sh
       - run: echo "$HOME/.local/sbin" >> "$GITHUB_PATH"
+      - run: echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
       - run: ./plano run
