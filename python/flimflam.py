@@ -337,10 +337,16 @@ class Skrouterd(Relay):
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
     def start_relay_1(self, runner):
-        return start(f"taskset --cpu-list 0 skrouterd --config $PWD/config/skrouterd1.conf")
+        if run("taskset --cpu-list 0", check=False).wait() == 0:
+            return start(f"taskset --cpu-list 0 skrouterd --config $PWD/config/skrouterd1.conf")
+        else:
+            return start(f"skrouterd --config $PWD/config/skrouterd1.conf")
 
     def start_relay_2(self, runner):
-        return start(f"taskset --cpu-list 2 skrouterd --config $PWD/config/skrouterd2.conf")
+        if run("taskset --cpu-list 2", check=False).wait() == 0:
+            return start(f"taskset --cpu-list 2 skrouterd --config $PWD/config/skrouterd2.conf")
+        else:
+            return start(f"skrouterd --config $PWD/config/skrouterd2.conf")
 
 class Nginx(Relay):
     def check(self):
