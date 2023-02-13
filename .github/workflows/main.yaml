@@ -1,0 +1,16 @@
+name: main
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: dnf -y install gcc js-d3-flame-graph perf sysstat util-linux-core
+      - run: dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
+      - run: echo -1 > /proc/sys/kernel/perf_event_paranoid
+      - run: ./plano check
