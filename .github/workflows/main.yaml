@@ -14,7 +14,7 @@ jobs:
       - run: dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
       - run: ./plano check --ignore-perf-config
       - run: ./plano build
-      - run: dnf -y install cmake cyrus-sasl-devel gcc-c++ git make libnghttp2-devel libuuid-devel openssl-devel python-devel
+      - run: dnf -y install cmake cyrus-sasl-devel cyrus-sasl-plain gcc-c++ git make libnghttp2-devel libuuid-devel libwebsockets-devel openssl-devel python-devel
       - run: sh scripts/install-skupper-router.sh
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: ./plano run

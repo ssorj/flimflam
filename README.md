@@ -1,5 +1,7 @@
 # Flimflam
 
+[![main](https://github.com/ssorj/flimflam/actions/workflows/main.yaml/badge.svg)](https://github.com/ssorj/flimflam/actions/workflows/main.yaml)
+
 Flimflam is a tool for examining Skupper router performance.  It
 combines a standard workload with scripting to capture metrics using
 the Linux "perf" tools.
