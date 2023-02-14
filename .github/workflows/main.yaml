@@ -12,10 +12,10 @@ jobs:
       - uses: actions/checkout@v3
       - run: dnf -y install gcc js-d3-flame-graph perf sysstat util-linux-core
       - run: dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
-      - run: ./plano check --ignore-perf-config
-      - run: ./plano build
       - run: dnf -y install cmake cyrus-sasl-devel cyrus-sasl-plain gcc-c++ git make libnghttp2-devel libuuid-devel libwebsockets-devel openssl-devel python-devel
       - run: sh scripts/install-skupper-router.sh
       - run: echo "$HOME/.local/sbin" >> "$GITHUB_PATH"
       - run: echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
-      - run: ./plano run
+      - run: ./plano check
+      - run: ./plano build
+      - run: ./plano bench

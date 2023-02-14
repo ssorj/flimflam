@@ -32,26 +32,36 @@ standard_parameters = (
                      help="The execution time (excluding warmup) in seconds"),
 )
 
+def check_perf():
+    check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
+
+    perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
+
+    if perf_event_paranoid != "-1\n":
+        exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
+
 @command
-def check(ignore_perf_config=False):
+def check():
     """
     Check for required programs and system configuration
     """
 
     check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
-    check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
     check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
-    if not ignore_perf_config:
-        perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
+    for workload in workloads.values():
+        if workload.name != "builtin":
+            workload.check()
 
-        if perf_event_paranoid != "-1\n":
-            exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
+    for relay in relays.values():
+        relay.check()
+
+    check_perf()
 
     print_heading("Note!")
     print("To reliably get stack traces, it is important to compile with frame pointers.")
-    print("Use CFLAGS=-fno-omit-frame-pointer when compiling.")
+    print("Use CFLAGS=-fno-omit-frame-pointer when compiling the router.")
     print()
 
 @command
@@ -84,9 +94,7 @@ def run_(*args, **kwargs):
     Run the workload and relays without capturing perf data
     """
 
-    check(ignore_perf_config=True)
     build()
-
     run_and_print_summary(kwargs)
     print()
 
@@ -96,7 +104,7 @@ def stat(*args, **kwargs):
     Capture 'perf stat' output
     """
 
-    check()
+    check_perf()
     build()
 
     with temp_file() as output:
@@ -115,7 +123,6 @@ def skstat(*args, **kwargs):
     if kwargs["relay"] != "skrouterd":
         fail("The skstat command works with skrouterd only")
 
-    check(ignore_perf_config=True)
     build()
 
     with temp_file() as output1, temp_file() as output2:
@@ -137,7 +144,7 @@ def record(*args, **kwargs):
     Capture perf events using 'perf record'
     """
 
-    check()
+    check_perf()
     build()
 
     def capture(pid1, pid2, duration):
@@ -155,7 +162,7 @@ def c2c(*args, **kwargs):
     Capture perf events using 'perf c2c'
     """
 
-    check()
+    check_perf()
     build()
 
     def capture(pid1, pid2, duration):
@@ -173,7 +180,7 @@ def mem(*args, **kwargs):
     Capture perf events using 'perf mem'
     """
 
-    check()
+    check_perf()
     build()
 
     def capture(pid1, pid2, duration):
@@ -196,7 +203,7 @@ def flamegraph(*args, **kwargs):
     except:
         fail("I can't find d3-flame-graph.  Run 'dnf install js-d3-flame-graph'.")
 
-    check()
+    check_perf()
     build()
 
     if exists("flamegraph.html"):
@@ -218,7 +225,12 @@ def bench(*args, **kwargs):
     Run each workload on each relay and summarize the results
     """
 
-    check(ignore_perf_config=True)
+    for workload in workloads.values():
+        workload.check()
+
+    for relay in relays.values():
+        relay.check()
+
     build()
 
     data = [["Workload", "Relay", "Bits/s", "Ops/s", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
@@ -236,8 +248,8 @@ def bench(*args, **kwargs):
             bps = None
             ops = None
 
-            if "octets" in results:
-                bps = format_quantity(results["octets"] * 8 / results["duration"])
+            if "bits" in results:
+                bps = format_quantity(results["bits"] / results["duration"])
 
             if "operations" in results:
                 ops = format_quantity(results["operations"] / results["duration"])

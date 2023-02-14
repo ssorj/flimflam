@@ -35,6 +35,8 @@ class Runner:
         self.relay.check()
         self.workload.check()
 
+        check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
+
         procs = list()
 
         connect_port = 20001
@@ -129,10 +131,10 @@ class Runner:
             ["Duration", format_duration(results["duration"])],
         ]
 
-        if "octets" in results:
+        if "bits" in results:
             props += [
-                ["Octets", format_quantity(results["octets"])],
-                ["Bits/s", format_quantity(results["octets"] * 8 / results["duration"])],
+                ["Bits", format_quantity(results["bits"])],
+                ["Bits/s", format_quantity(results["bits"] / results["duration"])],
             ]
 
         if "operations" in results:
@@ -257,7 +259,7 @@ class Builtin(Workload):
         # worked out how to isolate the transfer data for the duration
         # period only.
         summary = {
-            "octets": total,
+            "bits": total * 8,
             "duration": runner.warmup + runner.duration,
         }
 
@@ -278,7 +280,7 @@ class Iperf3(Workload):
         output = read_json(join(runner.output_dir, "output.json"))
 
         summary = {
-            "octets": output["end"]["sum_sent"]["bytes"],
+            "bits": output["end"]["sum_sent"]["bytes"] * 8,
             "duration": output["end"]["sum_sent"]["seconds"],
         }
 
@@ -311,13 +313,13 @@ class H2load(Workload):
 
         for line in output:
             if line.startswith("traffic:"):
-                octets = int(line.split()[2][1:-1])
+                bits = int(line.split()[2][1:-1]) * 8
                 break
         else:
             raise Exception(output)
 
         data = {
-            "octets": octets,
+            "bits": bits,
             "operations": operations,
             "duration": runner.duration,
         }
@@ -337,13 +339,13 @@ class Skrouterd(Relay):
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
     def start_relay_1(self, runner):
-        if run("taskset --cpu-list 0", check=False).wait() == 0:
+        if run("taskset --cpu-list 0 echo", check=False).wait() == 0:
             return start(f"taskset --cpu-list 0 skrouterd --config $PWD/config/skrouterd1.conf")
         else:
             return start(f"skrouterd --config $PWD/config/skrouterd1.conf")
 
     def start_relay_2(self, runner):
-        if run("taskset --cpu-list 2", check=False).wait() == 0:
+        if run("taskset --cpu-list 2 echo", check=False).wait() == 0:
             return start(f"taskset --cpu-list 2 skrouterd --config $PWD/config/skrouterd2.conf")
         else:
             return start(f"skrouterd --config $PWD/config/skrouterd2.conf")

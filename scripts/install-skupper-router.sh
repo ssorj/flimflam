@@ -58,7 +58,3 @@ mkdir -p router-build
 
     make -j $(nproc) && make install
 )
-
-# export PATH=$PREFIX/sbin:$PATH
-# export LD_LIBRARY_PATH=/tmp/abc/lib64:$LD_LIBRARY_PATH
-# exec skrouterd
