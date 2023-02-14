@@ -41,7 +41,7 @@ def check_perf():
         exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
 
 @command
-def check():
+def check(ignore_perf=False):
     """
     Check for required programs and system configuration
     """
@@ -57,7 +57,8 @@ def check():
     for relay in relays.values():
         relay.check()
 
-    check_perf()
+    if not ignore_perf:
+        check_perf()
 
     print_heading("Note!")
     print("To reliably get stack traces, it is important to compile with frame pointers.")
