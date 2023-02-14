@@ -148,7 +148,7 @@ class Runner:
 
         if "latency" in results:
             props += [
-                ["Latency", "{}us".format(results["latency"]["average"])],
+                ["Latency", results["latency"]["average"]],
             ]
 
         print_properties(props)
@@ -328,7 +328,7 @@ class H2load(Workload):
 
         for line in output:
             if line.startswith("time to 1st byte:"):
-                average_latency = int(line.split()[6][:-2])
+                average_latency = line.split()[6]
                 break
         else:
             raise Exception(output)

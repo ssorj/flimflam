@@ -256,7 +256,7 @@ def bench(*args, **kwargs):
                 ops = format_quantity(results["operations"] / results["duration"])
 
             if "latency" in results:
-                lat = "{}us".format(results["latency"]["average"])
+                lat = results["latency"]["average"]
 
             if "resources" in summary:
                 r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
