@@ -54,6 +54,9 @@ class Runner:
             await_port(listen_port)
             await_port(connect_port)
 
+            # Awkward sleep
+            sleep(1)
+
             procs.append(self.workload.start_client(self, connect_port))
 
             pids = [str(x.pid) for x in procs]
