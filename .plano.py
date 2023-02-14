@@ -234,7 +234,7 @@ def bench(*args, **kwargs):
 
     build()
 
-    data = [["Workload", "Relay", "Bits/s", "Ops/s", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
+    data = [["Workload", "Relay", "Bits/s", "Ops/s", "Lat", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
     for workload in workloads:
         for relay in relays:
@@ -246,8 +246,8 @@ def bench(*args, **kwargs):
 
             summary = read_json(join(output_dir, "summary.json"))
             results = summary["results"]
-            bps = None
-            ops = None
+            bps, ops, lat = None, None, None
+            r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
 
             if "bits" in results:
                 bps = format_quantity(results["bits"] / results["duration"])
@@ -255,15 +255,16 @@ def bench(*args, **kwargs):
             if "operations" in results:
                 ops = format_quantity(results["operations"] / results["duration"])
 
+            if "latency" in results:
+                lat = "{}us".format(results["latency"]["average"])
+
             if "resources" in summary:
                 r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
                 r1rss = format_quantity(summary["resources"]["relay_1"]["max_rss"], mode="binary")
                 r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
                 r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
-            else:
-                r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
 
-            data.append([workload, relay, bps, ops, r1cpu, r1rss, r2cpu, r2rss])
+            data.append([workload, relay, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
 
     print("---")
     print_heading("Benchmark results")

@@ -146,6 +146,11 @@ class Runner:
                 ["Operations/s", format_quantity(results["operations"] / results["duration"])],
             ]
 
+        if "latency" in results:
+            props += [
+                ["Latency", "{}us".format(results["latency"]["average"])],
+            ]
+
         print_properties(props)
 
         if "resources" in data:
@@ -262,8 +267,8 @@ class Builtin(Workload):
         # worked out how to isolate the transfer data for the duration
         # period only.
         summary = {
-            "bits": total * 8,
             "duration": runner.warmup + runner.duration,
+            "bits": total * 8,
         }
 
         return summary
@@ -283,8 +288,8 @@ class Iperf3(Workload):
         output = read_json(join(runner.output_dir, "output.json"))
 
         summary = {
-            "bits": output["end"]["sum_sent"]["bytes"] * 8,
             "duration": output["end"]["sum_sent"]["seconds"],
+            "bits": output["end"]["sum_sent"]["bytes"] * 8,
         }
 
         return summary
@@ -308,6 +313,13 @@ class H2load(Workload):
         output = read_lines(join(runner.output_dir, "output.txt"))
 
         for line in output:
+            if line.startswith("traffic:"):
+                bits = int(line.split()[2][1:-1]) * 8
+                break
+        else:
+            raise Exception(output)
+
+        for line in output:
             if line.startswith("requests:"):
                 operations = int(line.split()[1])
                 break
@@ -315,16 +327,19 @@ class H2load(Workload):
             raise Exception(output)
 
         for line in output:
-            if line.startswith("traffic:"):
-                bits = int(line.split()[2][1:-1]) * 8
+            if line.startswith("time to 1st byte:"):
+                average_latency = int(line.split()[6][:-2])
                 break
         else:
             raise Exception(output)
 
         data = {
+            "duration": runner.duration,
             "bits": bits,
             "operations": operations,
-            "duration": runner.duration,
+            "latency": {
+                "average": average_latency,
+            }
         }
 
         return data
