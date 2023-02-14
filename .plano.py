@@ -30,6 +30,8 @@ standard_parameters = (
                      help="The warmup time in seconds"),
     CommandParameter("duration", default=5, type=int, positional=False, metavar="SECONDS",
                      help="The execution time (excluding warmup) in seconds"),
+    CommandParameter("cpu_limit", default=1, type=int, positional=False, metavar="COUNT",
+                     help="The max per-process relay CPU usage (0 means no limit)"),
 )
 
 def check_perf():
@@ -227,7 +229,8 @@ def bench(*args, **kwargs):
     """
 
     for workload in workloads.values():
-        workload.check()
+        if workload.name != "builtin":
+            workload.check()
 
     for relay in relays.values():
         relay.check()

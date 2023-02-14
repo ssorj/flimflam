@@ -22,6 +22,7 @@ from plano import *
 class Runner:
     def __init__(self, kwargs):
         self.relay = relays[kwargs["relay"]]
+        self.cpu_limit = kwargs["cpu_limit"]
         self.workload = workloads[kwargs["workload"]]
         self.jobs = kwargs["jobs"]
         self.warmup = kwargs["warmup"]
@@ -87,6 +88,7 @@ class Runner:
                 "jobs": self.jobs,
                 "warmup": self.warmup,
                 "duration": self.duration,
+                "cpu_limit": self.cpu_limit,
                 "output_dir": self.output_dir,
             },
             "results": results,
@@ -121,6 +123,7 @@ class Runner:
             ["Jobs", config["jobs"]],
             ["Warmup", format_duration(config["warmup"])],
             ["Duration", format_duration(config["duration"])],
+            ["CPU limit", config["cpu_limit"]],
             ["Output dir", config["output_dir"]],
         ]
 
@@ -356,38 +359,46 @@ class Skrouterd(Relay):
         check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
+        # XXX Check taskset config
+
     def start_relay_1(self, runner):
-        if run("taskset --cpu-list 0 echo", check=False).wait() == 0:
-            return start(f"taskset --cpu-list 0 skrouterd --config $PWD/config/skrouterd1.conf")
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
+            return start(f"taskset --cpu-list {cpus} skrouterd --config $PWD/config/skrouterd1.conf")
         else:
-            return start(f"skrouterd --config $PWD/config/skrouterd1.conf")
+            return start("skrouterd --config $PWD/config/skrouterd1.conf")
 
     def start_relay_2(self, runner):
-        if run("taskset --cpu-list 2 echo", check=False).wait() == 0:
-            return start(f"taskset --cpu-list 2 skrouterd --config $PWD/config/skrouterd2.conf")
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
+            return start(f"taskset --cpu-list {cpus} skrouterd --config $PWD/config/skrouterd2.conf")
         else:
-            return start(f"skrouterd --config $PWD/config/skrouterd2.conf")
+            return start("skrouterd --config $PWD/config/skrouterd2.conf")
 
 class Nginx(Relay):
     def check(self):
         check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
+        # XXX Check taskset config
+
         if not exists("/usr/lib64/nginx/modules/ngx_stream_module.so"):
             exit("To use Nginx as a relay, I need the stream module.  "
                  "Run 'dnf install nginx-mod-stream'.")
 
     def start_relay_1(self, runner):
-        if run("taskset --cpu-list 0 echo", check=False).wait() == 0:
-            return start(f"taskset --cpu-list 0 nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
+            return start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
         else:
-            return start(f"nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+            return start("nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
 
     def start_relay_2(self, runner):
-        if run("taskset --cpu-list 2 echo", check=False).wait() == 0:
-            return start(f"taskset --cpu-list 2 nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
+            return start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
         else:
-            return start(f"nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+            return start("nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp

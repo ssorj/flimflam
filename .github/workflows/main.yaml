@@ -18,4 +18,4 @@ jobs:
       - run: echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
       - run: ./plano check --ignore-perf
       - run: ./plano build
-      - run: ./plano bench
+      - run: ./plano bench --cpu-limit 0
