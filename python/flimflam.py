@@ -360,10 +360,16 @@ class Nginx(Relay):
                  "Run 'dnf install nginx-mod-stream'.")
 
     def start_relay_1(self, runner):
-        return start(f"taskset --cpu-list 0 nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+        if run("taskset --cpu-list 0 echo", check=False).wait() == 0:
+            return start(f"taskset --cpu-list 0 nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+        else:
+            return start(f"nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
 
     def start_relay_2(self, runner):
-        return start(f"taskset --cpu-list 2 nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+        if run("taskset --cpu-list 2 echo", check=False).wait() == 0:
+            return start(f"taskset --cpu-list 2 nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+        else:
+            return start(f"nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
