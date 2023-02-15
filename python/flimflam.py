@@ -32,8 +32,6 @@ class Runner:
         self.output_dir = make_temp_dir()
 
     def run(self, capture):
-        assert capture is not None
-
         self.relay.check(self)
         self.workload.check(self)
 
@@ -42,44 +40,53 @@ class Runner:
         connect_port = 20001
         listen_port = 20002
 
-        try:
-            if self.relay is relays["none"]:
+        if self.relay is relays["none"]:
+            try:
                 connect_port = listen_port
-            else:
+
+                self.workload.start_server(self, listen_port)
+
+                await_port(listen_port)
+
+                self.workload.start_client(self, connect_port)
+
+                procs = [self.workload.client_proc, self.workload.server_proc]
+                pids = [str(x.pid) for x in procs]
+
+                with start(f"pidstat 2 --human -l -t -p {','.join(pids)}"):
+                    sleep(self.warmup + self.duration)
+            finally:
+                self.workload.stop_client()
+                self.workload.stop_server()
+        else:
+            assert capture is not None
+
+            try:
                 self.relay.start_relay_1(self)
                 self.relay.start_relay_2(self)
 
-            self.workload.start_server(self, listen_port)
+                self.workload.start_server(self, listen_port)
 
-            await_port(listen_port)
-            await_port(connect_port)
+                await_port(listen_port)
+                await_port(connect_port)
 
-            # Awkward sleep
-            sleep(1)
+                # Awkward sleep
+                sleep(1)
 
-            self.workload.start_client(self, connect_port)
+                self.workload.start_client(self, connect_port)
 
-            procs = [self.workload.client_proc, self.workload.server_proc]
+                procs = [self.relay.relay_1_proc, self.relay.relay_2_proc,
+                         self.workload.client_proc, self.workload.server_proc]
+                pids = [str(x.pid) for x in procs]
 
-            if self.relay is not relays["none"]:
-                procs += [self.relay.relay_1_proc, self.relay.relay_2_proc]
+                with start(f"pidstat 2 --human -l -t -p {','.join(pids)}"):
+                    sleep(self.warmup)
 
-            pids = [str(x.pid) for x in procs]
-
-            with start(f"pidstat 2 --human -l -t -p {','.join(pids)}"):
-                sleep(self.warmup)
-
-                if self.relay is relays["none"]:
-                    sleep(self.duration)
-                else:
-                    with ProcessMonitor(pids[2]) as mon1, ProcessMonitor(pids[3]) as mon2:
-                        capture(pids[2], pids[3], self.duration)
-
-        finally:
-            self.workload.stop_client()
-            self.workload.stop_server()
-
-            if self.relay is not relays["none"]:
+                    with ProcessMonitor(pids[0]) as mon1, ProcessMonitor(pids[1]) as mon2:
+                        capture(pids[0], pids[1], self.duration)
+            finally:
+                self.workload.stop_client()
+                self.workload.stop_server()
                 self.relay.stop_relay_1()
                 self.relay.stop_relay_2()
 
@@ -252,12 +259,14 @@ class Workload:
         self.server_proc = None
 
     def stop_client(self):
-        kill(self.client_proc)
-        wait(self.client_proc)
+        if self.client_proc is not None:
+            kill(self.client_proc)
+            wait(self.client_proc)
 
     def stop_server(self):
-        kill(self.server_proc)
-        wait(self.server_proc)
+        if self.server_proc is not None:
+            kill(self.server_proc)
+            wait(self.server_proc)
 
 class Builtin(Workload):
     def check(self, runner=None):
@@ -379,12 +388,14 @@ class Relay:
         pass
 
     def stop_relay_1(self):
-        kill(self.relay_1_proc)
-        wait(self.relay_1_proc)
+        if self.relay_1_proc is not None:
+            kill(self.relay_1_proc)
+            wait(self.relay_1_proc)
 
     def stop_relay_2(self):
-        kill(self.relay_2_proc)
-        wait(self.relay_2_proc)
+        if self.relay_2_proc is not None:
+            kill(self.relay_2_proc)
+            wait(self.relay_2_proc)
 
 class Skrouterd(Relay):
     def check(self, runner=None):
