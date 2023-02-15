@@ -56,8 +56,8 @@ class Runner:
                 with start(f"pidstat 2 --human -l -t -p {','.join(pids)}"):
                     sleep(self.warmup + self.duration)
             finally:
-                self.workload.stop_client()
-                self.workload.stop_server()
+                self.workload.stop_client(self)
+                self.workload.stop_server(self)
         else:
             assert capture is not None
 
@@ -85,10 +85,10 @@ class Runner:
                     with ProcessMonitor(pids[0]) as mon1, ProcessMonitor(pids[1]) as mon2:
                         capture(pids[0], pids[1], self.duration)
             finally:
-                self.workload.stop_client()
-                self.workload.stop_server()
-                self.relay.stop_relay_1()
-                self.relay.stop_relay_2()
+                self.workload.stop_client(self)
+                self.workload.stop_server(self)
+                self.relay.stop_relay_1(self)
+                self.relay.stop_relay_2(self)
 
         results = self.workload.process_output(self)
 
@@ -258,12 +258,12 @@ class Workload:
         self.client_proc = None
         self.server_proc = None
 
-    def stop_client(self):
+    def stop_client(self, runner):
         if self.client_proc is not None:
             kill(self.client_proc)
             wait(self.client_proc)
 
-    def stop_server(self):
+    def stop_server(self, runner):
         if self.server_proc is not None:
             kill(self.server_proc)
             wait(self.server_proc)
@@ -339,9 +339,19 @@ class H2load(Workload):
         write("/tmp/flimflam/http2-server/web/index.txt", "x" * 100)
         self.server_proc = start(f"nginx -c $PWD/config/http2-server.conf -e /dev/stderr")
 
-    def stop_client(self):
-        sleep(1) # Give h2load extra time to report out
-        super().stop_client()
+    def stop_client(self, runner):
+        # Give h2load lots of extra time to report out
+        for i in range(10):
+            output = read(join(runner.output_dir, "output.txt"))
+
+            if "time for request:" in output:
+                break
+
+            sleep(1)
+        else:
+            raise Exception("Timed out waiting for output")
+
+        super().stop_client(runner)
 
     def process_output(self, runner):
         output = read_lines(join(runner.output_dir, "output.txt"))
@@ -393,9 +403,19 @@ class H2loadH1(Workload):
         write("/tmp/flimflam/http1-server/web/index.txt", "x" * 100)
         self.server_proc = start(f"nginx -c $PWD/config/http1-server.conf -e /dev/stderr")
 
-    def stop_client(self):
-        sleep(1) # Give h2load extra time to report out
-        super().stop_client()
+    def stop_client(self, runner):
+        # Give h2load lots of extra time to report out
+        for i in range(10):
+            output = read(join(runner.output_dir, "output.txt"))
+
+            if "time for request:" in output:
+                break
+
+            sleep(1)
+        else:
+            raise Exception("Timed out waiting for output")
+
+        super().stop_client(runner)
 
     def process_output(self, runner):
         output = read_lines(join(runner.output_dir, "output.txt"))
@@ -441,12 +461,12 @@ class Relay:
     def check(self, runner=None):
         pass
 
-    def stop_relay_1(self):
+    def stop_relay_1(self, runner):
         if self.relay_1_proc is not None:
             kill(self.relay_1_proc)
             wait(self.relay_1_proc)
 
-    def stop_relay_2(self):
+    def stop_relay_2(self, runner):
         if self.relay_2_proc is not None:
             kill(self.relay_2_proc)
             wait(self.relay_2_proc)
