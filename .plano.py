@@ -65,10 +65,13 @@ def check(ignore_perf=False):
 
     print_heading("Note!")
     print("To reliably get stack traces, it is important to compile with frame pointers.")
-    print("Use CFLAGS=-fno-omit-frame-pointer when compiling the router.")
+    print("Use CFLAGS=-fno-omit-frame-pointer when compiling Proton and the router.")
     print()
 
-def run_and_print_summary(kwargs, capture=None):
+def runner(kwargs, capture=None):
+    if kwargs["workload"] == "builtin":
+        build()
+
     if capture is None:
         def capture(pid1, pid2, duration):
             sleep(duration)
@@ -87,8 +90,7 @@ def run_(*args, **kwargs):
     Run a workload without capturing any data
     """
 
-    build()
-    run_and_print_summary(kwargs)
+    runner(kwargs)
     print()
 
 @command(parameters=standard_parameters)
@@ -98,13 +100,12 @@ def stat(*args, **kwargs):
     """
 
     check_perf()
-    build()
 
     with temp_file() as output:
         def capture(pid1, pid2, duration):
             run(f"perf stat --detailed --pid {pid1},{pid2} sleep {duration}", output=output)
 
-        run_and_print_summary(kwargs, capture)
+        runner(kwargs, capture)
         print(read(output))
 
 @command(parameters=standard_parameters)
@@ -113,10 +114,10 @@ def skstat(*args, **kwargs):
     Capture 'skstat' output
     """
 
+    check_program("skstat", "I can't find skstat.  Make sure it's on the path.")
+
     if kwargs["relay"] != "skrouterd":
         fail("The skstat command works with skrouterd only")
-
-    build()
 
     with temp_file() as output1, temp_file() as output2:
         def capture(pid1, pid2, duration):
@@ -124,7 +125,7 @@ def skstat(*args, **kwargs):
             run(f"skstat -b localhost:56721 -m", stdout=output1)
             run(f"skstat -b localhost:56722 -m", stdout=output2)
 
-        run_and_print_summary(kwargs, capture)
+        runner(kwargs, capture)
 
         print_heading("Router 1")
         print(read(output1))
@@ -138,12 +139,11 @@ def record(*args, **kwargs):
     """
 
     check_perf()
-    build()
 
     def capture(pid1, pid2, duration):
         run(f"perf record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    run_and_print_summary(kwargs, capture)
+    runner(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf report --no-children'")
@@ -156,12 +156,11 @@ def c2c(*args, **kwargs):
     """
 
     check_perf()
-    build()
 
     def capture(pid1, pid2, duration):
         run(f"perf c2c record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    run_and_print_summary(kwargs, capture)
+    runner(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf c2c report'")
@@ -174,12 +173,11 @@ def mem(*args, **kwargs):
     """
 
     check_perf()
-    build()
 
     def capture(pid1, pid2, duration):
         run(f"perf mem record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    run_and_print_summary(kwargs, capture)
+    runner(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf mem report --no-children'")
@@ -197,7 +195,6 @@ def flamegraph(*args, **kwargs):
         fail("I can't find d3-flame-graph.  Run 'dnf install js-d3-flame-graph'.")
 
     check_perf()
-    build()
 
     if exists("flamegraph.html"):
         move("flamegraph.html", "old.flamegraph.html")
@@ -205,7 +202,7 @@ def flamegraph(*args, **kwargs):
     def capture(pid1, pid2, duration):
         run(f"perf script flamegraph --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    run_and_print_summary(kwargs, capture)
+    runner(kwargs, capture)
 
     print_heading("Next step")
 
@@ -224,8 +221,6 @@ def bench(*args, **kwargs):
     for relay in relays.values():
         relay.check()
 
-    build()
-
     data = [["Workload", "Relay", "Adaptor", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
     for workload in workloads:
@@ -239,7 +234,7 @@ def bench(*args, **kwargs):
                 if adaptor == "http1" and (workload != "h2load" or relay != "skrouterd"):
                     continue
 
-                output_dir = run_and_print_summary(kwargs)
+                output_dir = runner(kwargs)
                 print()
 
                 summary = read_json(join(output_dir, "summary.json"))

@@ -1,7 +1,7 @@
-/client
-/server
-/perf.data*
-/flamegraph.html*
-/transfers.*.csv*
-/old.*
+/builtin/client
+/builtin/server
+/perf.data
+/perf.data.old
+/flamegraph.html
+/old.flamegraph.html
 __pycache__/
