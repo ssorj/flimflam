@@ -10,6 +10,7 @@ the Linux "perf" tools.
 
 * Flimflam uses the skrouterd (or nginx) on your path.
 * Relays
+** Each relay process is by default limited to 1 CPU.  Use the `--cpu-limit` option to change this.  Workloads have no imposed limit.
 * Workloads
 * ./plano --help
 * ./plano run

@@ -24,6 +24,8 @@ standard_parameters = (
                      help="The intermediary standing between the workload client and server"),
     CommandParameter("workload", default="builtin", positional=False, short_option="w",
                      help="The selected workload"),
+    CommandParameter("adaptor", default="tcp", positional=False, # XXX choices
+                     help="The selected adaptor"),
     CommandParameter("jobs", default=2, type=int, positional=False,
                      help="The number of concurrent workload jobs"),
     CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
@@ -291,13 +293,21 @@ def clean():
 
 @command(hidden=True)
 def self_test():
+    kwargs = {
+        "adaptor": "tcp",
+        "duration": 1,
+        "warmup": 1,
+        "jobs": 1,
+        "cpu_limit": 1,
+    }
+
     for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
-        globals()[name](relay="skrouterd", workload="builtin", duration=1, warmup=1, jobs=1)
+        globals()[name](relay="skrouterd", workload="builtin", **kwargs)
 
     for relay in relays.keys():
-        run_(relay=relay, workload="builtin", duration=1, warmup=1, jobs=1)
+        run_(relay=relay, workload="builtin", **kwargs)
 
     for workload in workloads.keys():
-        run_(relay="none", workload=workload, duration=1, warmup=1, jobs=1)
+        run_(relay="none", workload=workload, **kwargs)
 
     clean()

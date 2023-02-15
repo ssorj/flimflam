@@ -22,11 +22,12 @@ from plano import *
 class Runner:
     def __init__(self, kwargs):
         self.relay = relays[kwargs["relay"]]
-        self.cpu_limit = kwargs["cpu_limit"]
         self.workload = workloads[kwargs["workload"]]
+        self.adaptor = kwargs["adaptor"]
         self.jobs = kwargs["jobs"]
         self.warmup = kwargs["warmup"]
         self.duration = kwargs["duration"]
+        self.cpu_limit = kwargs["cpu_limit"]
 
         self.output_dir = make_temp_dir()
 
@@ -38,19 +39,17 @@ class Runner:
 
         check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
 
-        procs = list()
-
         connect_port = 20001
         listen_port = 20002
 
-        if self.relay is relays["none"]:
-            connect_port = listen_port
-        else:
-            procs.append(self.relay.start_relay_1(self))
-            procs.append(self.relay.start_relay_2(self))
-
         try:
-            procs.append(self.workload.start_server(self, listen_port))
+            if self.relay is relays["none"]:
+                connect_port = listen_port
+            else:
+                self.relay.start_relay_1(self)
+                self.relay.start_relay_2(self)
+
+            self.workload.start_server(self, listen_port)
 
             await_port(listen_port)
             await_port(connect_port)
@@ -58,7 +57,12 @@ class Runner:
             # Awkward sleep
             sleep(1)
 
-            procs.append(self.workload.start_client(self, connect_port))
+            self.workload.start_client(self, connect_port)
+
+            procs = [self.workload.client_proc, self.workload.server_proc]
+
+            if self.relay is not relays["none"]:
+                procs += [self.relay.relay_1_proc, self.relay.relay_2_proc]
 
             pids = [str(x.pid) for x in procs]
 
@@ -71,13 +75,13 @@ class Runner:
                     with ProcessMonitor(pids[0]) as mon1, ProcessMonitor(pids[1]) as mon2:
                         capture(pids[0], pids[1], self.duration)
 
-                sleep(1) # So the workload can self-terminate
         finally:
-            for proc in procs:
-                kill(proc)
+            self.workload.stop_client()
+            self.workload.stop_server()
 
-            for proc in procs:
-                wait(proc)
+            if self.relay is not relays["none"]:
+                self.relay.stop_relay_1()
+                self.relay.stop_relay_2()
 
         results = self.workload.process_output(self)
 
@@ -85,6 +89,7 @@ class Runner:
             "configuration": {
                 "relay": self.relay.name,
                 "workload": self.workload.name,
+                "adaptor": self.adaptor,
                 "jobs": self.jobs,
                 "warmup": self.warmup,
                 "duration": self.duration,
@@ -120,6 +125,7 @@ class Runner:
         props = [
             ["Relay", config["relay"]],
             ["Workload", config["workload"]],
+            ["Adaptor", config["adaptor"]],
             ["Jobs", config["jobs"]],
             ["Warmup", format_duration(config["warmup"])],
             ["Duration", format_duration(config["duration"])],
@@ -242,6 +248,16 @@ class ProcessMonitor(_threading.Thread):
 class Workload:
     def __init__(self, name):
         self.name = name
+        self.client_proc = None
+        self.server_proc = None
+
+    def stop_client(self):
+        kill(self.client_proc)
+        wait(self.client_proc)
+
+    def stop_server(self):
+        kill(self.server_proc)
+        wait(self.server_proc)
 
 class Builtin(Workload):
     def check(self):
@@ -249,10 +265,10 @@ class Builtin(Workload):
         check_exists("server")
 
     def start_client(self, runner, port):
-        return start(f"./client {port} {runner.jobs} {runner.output_dir}")
+        self.client_proc = start(f"./client {port} {runner.jobs} {runner.output_dir}")
 
     def start_server(self, runner, port):
-        return start(f"./server {port}")
+        self.server_proc = start(f"./server {port}")
 
     def process_output(self, runner):
         total = 0
@@ -281,11 +297,12 @@ class Iperf3(Workload):
         check_program("iperf3", "I can't find iperf3.  Run 'dnf install iperf3'.")
 
     def start_client(self, runner, port):
-        return start(f"iperf3 --client 127.0.0.1 --port {port} --parallel {runner.jobs}"
-                     f" --json --logfile {runner.output_dir}/output.json --time 86400 --omit {runner.warmup}")
+        self.client_proc = start(f"iperf3 --client 127.0.0.1 --port {port} --parallel {runner.jobs}"
+                                 f" --json --logfile {runner.output_dir}/output.json"
+                                 f" --time {runner.warmup + runner.duration} --omit {runner.warmup}")
 
     def start_server(self, runner, port):
-        return start(f"iperf3 --server --port {port}")
+        self.server_proc = start(f"iperf3 --server --port {port}")
 
     def process_output(self, runner):
         output = read_json(join(runner.output_dir, "output.json"))
@@ -303,14 +320,18 @@ class H2load(Workload):
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
     def start_client(self, runner, port):
-        return start(f"h2load --h1 --warm-up-time {runner.warmup} --duration {runner.duration}"
-                     f" --clients {runner.jobs} --threads {runner.jobs}"
-                     f" http://localhost:{port}/index.txt",
-                     stdout=join(runner.output_dir, "output.txt"))
+        self.client_proc = start(f"h2load --h1 --warm-up-time {runner.warmup} --duration {runner.duration}"
+                                 f" --clients {runner.jobs} --threads {runner.jobs}"
+                                 f" http://localhost:{port}/index.txt",
+                                 stdout=join(runner.output_dir, "output.txt"))
 
     def start_server(self, runner, port):
         write("/tmp/flimflam/http-server/web/index.txt", "x" * 100)
-        return start(f"nginx -c $PWD/config/http-server.conf -e /dev/stderr")
+        self.server_proc = start(f"nginx -c $PWD/config/http-server.conf -e /dev/stderr")
+
+    def stop_client(self):
+        sleep(1) # Give h2load extra time to report out
+        super().stop_client()
 
     def process_output(self, runner):
         output = read_lines(join(runner.output_dir, "output.txt"))
@@ -350,9 +371,19 @@ class H2load(Workload):
 class Relay:
     def __init__(self, name):
         self.name = name
+        self.relay_1_proc = None
+        self.relay_2_proc = None
 
     def check(self):
         pass
+
+    def stop_relay_1(self):
+        kill(self.relay_1_proc)
+        wait(self.relay_1_proc)
+
+    def stop_relay_2(self):
+        kill(self.relay_2_proc)
+        wait(self.relay_2_proc)
 
 class Skrouterd(Relay):
     def check(self):
@@ -362,25 +393,30 @@ class Skrouterd(Relay):
         # XXX Check taskset config
 
     def start_relay_1(self, runner):
+        config_file = f"$PWD/config/skrouterd-{runner.adaptor}-1.conf"
+
         if runner.cpu_limit > 0:
             cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
-            return start(f"taskset --cpu-list {cpus} skrouterd --config $PWD/config/skrouterd1.conf")
+            self.relay_1_proc = start(f"taskset --cpu-list {cpus} skrouterd --config {config_file}")
         else:
-            return start("skrouterd --config $PWD/config/skrouterd1.conf")
+            self.relay_1_proc = start(f"skrouterd --config {config_file}")
 
     def start_relay_2(self, runner):
+        config_file = f"$PWD/config/skrouterd-{runner.adaptor}-2.conf"
+
         if runner.cpu_limit > 0:
             cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
-            return start(f"taskset --cpu-list {cpus} skrouterd --config $PWD/config/skrouterd2.conf")
+            self.relay_2_proc = start(f"taskset --cpu-list {cpus} skrouterd --config {config_file}")
         else:
-            return start("skrouterd --config $PWD/config/skrouterd2.conf")
+            self.relay_2_proc = start(f"skrouterd --config {config_file}")
 
 class Nginx(Relay):
     def check(self):
         check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
-        # XXX Check taskset config
+        # XXX Check taskset config using echo
+        # XXX Check adaptor is tcp
 
         if not exists("/usr/lib64/nginx/modules/ngx_stream_module.so"):
             exit("To use Nginx as a relay, I need the stream module.  "
@@ -389,16 +425,16 @@ class Nginx(Relay):
     def start_relay_1(self, runner):
         if runner.cpu_limit > 0:
             cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
-            return start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+            self.relay_1_proc = start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx-1.conf -e /dev/stderr")
         else:
-            return start("nginx -c $PWD/config/nginx1.conf -e /dev/stderr")
+            self.relay_1_proc = start("nginx -c $PWD/config/nginx-1.conf -e /dev/stderr")
 
     def start_relay_2(self, runner):
         if runner.cpu_limit > 0:
             cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
-            return start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+            self.relay_2_proc = start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx-2.conf -e /dev/stderr")
         else:
-            return start("nginx -c $PWD/config/nginx2.conf -e /dev/stderr")
+            self.relay_2_proc = start("nginx -c $PWD/config/nginx-2.conf -e /dev/stderr")
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
