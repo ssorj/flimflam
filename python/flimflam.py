@@ -262,14 +262,14 @@ class Workload:
 class Builtin(Workload):
     def check(self, runner=None):
         if runner is not None:
-            check_exists("client")
-            check_exists("server")
+            check_exists("builtin/client")
+            check_exists("builtin/server")
 
     def start_client(self, runner, port):
-        self.client_proc = start(f"./client {port} {runner.jobs} {runner.output_dir}")
+        self.client_proc = start(f"builtin/client {port} {runner.jobs} {runner.output_dir}")
 
     def start_server(self, runner, port):
-        self.server_proc = start(f"./server {port}")
+        self.server_proc = start(f"builtin/server {port}")
 
     def process_output(self, runner):
         total = 0

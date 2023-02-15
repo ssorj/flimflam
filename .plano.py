@@ -68,17 +68,6 @@ def check(ignore_perf=False):
     print("Use CFLAGS=-fno-omit-frame-pointer when compiling the router.")
     print()
 
-@command
-def build():
-    """
-    Compile the builtin workload
-    """
-
-    check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
-
-    run("gcc client.c -o client -g -O2 -std=c99 -fno-omit-frame-pointer")
-    run("gcc server.c -o server -g -O2 -std=c99 -fno-omit-frame-pointer")
-
 def run_and_print_summary(kwargs, capture=None):
     if capture is None:
         def capture(pid1, pid2, duration):
@@ -95,7 +84,7 @@ def run_and_print_summary(kwargs, capture=None):
 @command(parameters=standard_parameters)
 def run_(*args, **kwargs):
     """
-    Run the workload and relays without capturing perf data
+    Run a workload without capturing any data
     """
 
     build()
@@ -281,13 +270,24 @@ def bench(*args, **kwargs):
     print()
 
 @command
+def build():
+    """
+    Compile the builtin workload
+    """
+
+    check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
+
+    run("gcc builtin/client.c -o builtin/client -g -O2 -std=c99 -fno-omit-frame-pointer")
+    run("gcc builtin/server.c -o builtin/server -g -O2 -std=c99 -fno-omit-frame-pointer")
+
+@command
 def clean():
     """
     Remove build artifacts and output files
     """
 
-    remove("client")
-    remove("server")
+    remove("builtin/client")
+    remove("builtin/server")
     remove("perf.data")
     remove("perf.data.old")
     remove("flamegraph.html")
