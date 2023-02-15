@@ -24,7 +24,12 @@ void* run(void* data) {
 
     while (1) {
         ssize_t received = recv(sock, buffer, BUFFER_SIZE, 0);
-        if (received == 0 || received < 0) goto egress;
+        if (received < 0) goto egress;
+
+        if (received == 0) {
+            printf("server: Connection closed by peer\n");
+            goto egress;
+        }
 
         ssize_t sent = send(sock, buffer, received, 0);
         if (sent < 0) goto egress;
@@ -33,7 +38,7 @@ void* run(void* data) {
 egress:
 
     if (errno) {
-        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+        fprintf(stderr, "server: ERROR! %s\n", strerror(errno));
     }
 
     close(sock);
@@ -70,13 +75,13 @@ int main(size_t argc, char** argv) {
     err = listen(server_sock, 1);
     if (err) goto egress;
 
-    printf("Listening!\n");
+    printf("server: Listening for connections on port %d\n", port);
 
     while (1) {
         int sock = accept(server_sock, NULL, NULL);
         if (sock < 0) goto egress;
 
-        printf("Accepted!\n");
+        printf("server: Connection accepted\n");
 
         pthread_t* thread = malloc(sizeof(pthread_t));
         thread_context_t* context = malloc(sizeof(thread_context_t));
@@ -91,7 +96,7 @@ int main(size_t argc, char** argv) {
 egress:
 
     if (errno) {
-        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+        fprintf(stderr, "server: ERROR! %s\n", strerror(errno));
     }
 
     if (server_sock > 0) {

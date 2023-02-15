@@ -34,8 +34,8 @@ class Runner:
     def run(self, capture):
         assert capture is not None
 
-        self.relay.check()
-        self.workload.check()
+        self.relay.check(self)
+        self.workload.check(self)
 
         check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
 
@@ -157,7 +157,7 @@ class Runner:
 
         if "latency" in results:
             props += [
-                ["Latency", results["latency"]["average"]],
+                ["Latency*", results["latency"]["average"]],
             ]
 
         print_properties(props)
@@ -260,9 +260,10 @@ class Workload:
         wait(self.server_proc)
 
 class Builtin(Workload):
-    def check(self):
-        check_exists("client")
-        check_exists("server")
+    def check(self, runner=None):
+        if runner is not None:
+            check_exists("client")
+            check_exists("server")
 
     def start_client(self, runner, port):
         self.client_proc = start(f"./client {port} {runner.jobs} {runner.output_dir}")
@@ -293,7 +294,7 @@ class Builtin(Workload):
         return summary
 
 class Iperf3(Workload):
-    def check(self):
+    def check(self, runner=None):
         check_program("iperf3", "I can't find iperf3.  Run 'dnf install iperf3'.")
 
     def start_client(self, runner, port):
@@ -315,7 +316,7 @@ class Iperf3(Workload):
         return summary
 
 class H2load(Workload):
-    def check(self):
+    def check(self, runner=None):
         check_program("h2load", "I can't find h2load.  Run 'dnf install nghttp2'.")
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
@@ -374,7 +375,7 @@ class Relay:
         self.relay_1_proc = None
         self.relay_2_proc = None
 
-    def check(self):
+    def check(self, runner=None):
         pass
 
     def stop_relay_1(self):
@@ -386,7 +387,7 @@ class Relay:
         wait(self.relay_2_proc)
 
 class Skrouterd(Relay):
-    def check(self):
+    def check(self, runner=None):
         check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
@@ -411,16 +412,19 @@ class Skrouterd(Relay):
             self.relay_2_proc = start(f"skrouterd --config {config_file}")
 
 class Nginx(Relay):
-    def check(self):
+    def check(self, runner=None):
         check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
-
-        # XXX Check taskset config using echo
-        # XXX Check adaptor is tcp
 
         if not exists("/usr/lib64/nginx/modules/ngx_stream_module.so"):
             exit("To use Nginx as a relay, I need the stream module.  "
                  "Run 'dnf install nginx-mod-stream'.")
+
+        if runner is not None:
+            if runner.adaptor != "tcp":
+                exit("The Nginx relay works with the tcp adaptor only")
+
+            # XXX Check taskset config using echo
 
     def start_relay_1(self, runner):
         if runner.cpu_limit > 0:

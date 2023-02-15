@@ -30,7 +30,7 @@ void* run_sender(void* data) {
     }
 
     if (errno) {
-        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+        fprintf(stderr, "client: ERROR! %s\n", strerror(errno));
     }
 
     free(buffer);
@@ -57,7 +57,7 @@ void* run_receiver(void* data) {
         if (received < 0) goto egress;
 
         if (received == 0) {
-            printf("Disconnected!\n");
+            printf("client: Disconnected\n");
             goto egress;
         }
 
@@ -70,7 +70,7 @@ void* run_receiver(void* data) {
 egress:
 
     if (errno) {
-        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+        fprintf(stderr, "client: ERROR! %s\n", strerror(errno));
     }
 
     fclose(transfers);
@@ -109,10 +109,12 @@ int main(size_t argc, char** argv) {
             .sin_port = htons(port)
         };
 
+        printf("client: Connecting to port %d\n", port);
+
         int err = connect(sock, (const struct sockaddr*) &addr, sizeof(addr));
         if (err) goto egress;
 
-        printf("Connected!\n");
+        printf("client: Connected\n");
 
         pthread_create(&sender_threads[i], NULL, &run_sender, &contexts[i]);
         pthread_create(&receiver_threads[i], NULL, &run_receiver, &contexts[i]);
@@ -129,7 +131,7 @@ int main(size_t argc, char** argv) {
 egress:
 
     if (errno) {
-        fprintf(stderr, "ERROR! %s\n", strerror(errno));
+        fprintf(stderr, "client: ERROR! %s\n", strerror(errno));
     }
 
     for (int i = 0; i < jobs; i++) {

@@ -55,8 +55,7 @@ def check(ignore_perf=False):
     check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
     for workload in workloads.values():
-        if workload.name != "builtin":
-            workload.check()
+        workload.check()
 
     for relay in relays.values():
         relay.check()
@@ -231,15 +230,14 @@ def bench(*args, **kwargs):
     """
 
     for workload in workloads.values():
-        if workload.name != "builtin":
-            workload.check()
+        workload.check()
 
     for relay in relays.values():
         relay.check()
 
     build()
 
-    data = [["Workload", "Relay", "Bits/s", "Ops/s", "Lat", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
+    data = [["Workload", "Relay", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
     for workload in workloads:
         for relay in relays:
