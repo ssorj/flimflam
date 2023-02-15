@@ -72,8 +72,8 @@ class Runner:
                 if self.relay is relays["none"]:
                     sleep(self.duration)
                 else:
-                    with ProcessMonitor(pids[0]) as mon1, ProcessMonitor(pids[1]) as mon2:
-                        capture(pids[0], pids[1], self.duration)
+                    with ProcessMonitor(pids[2]) as mon1, ProcessMonitor(pids[3]) as mon2:
+                        capture(pids[2], pids[3], self.duration)
 
         finally:
             self.workload.stop_client()
