@@ -87,8 +87,8 @@ class Runner:
 
         summary = {
             "configuration": {
-                "relay": self.relay.name,
                 "workload": self.workload.name,
+                "relay": self.relay.name,
                 "adaptor": self.adaptor,
                 "jobs": self.jobs,
                 "warmup": self.warmup,
@@ -123,8 +123,8 @@ class Runner:
         config = data["configuration"]
 
         props = [
-            ["Relay", config["relay"]],
             ["Workload", config["workload"]],
+            ["Relay", config["relay"]],
             ["Adaptor", config["adaptor"]],
             ["Jobs", config["jobs"]],
             ["Warmup", format_duration(config["warmup"])],
@@ -443,17 +443,22 @@ class Nginx(Relay):
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
 
+workloads = {
+    "builtin": Builtin("builtin"),
+    "iperf3": Iperf3("iperf3"),
+    "h2load": H2load("h2load"),
+}
+
 relays = {
     "skrouterd": Skrouterd("skrouterd"),
     "nginx": Nginx("nginx"),
     "none": Relay("none"),
 }
 
-workloads = {
-    "builtin": Builtin("builtin"),
-    "iperf3": Iperf3("iperf3"),
-    "h2load": H2load("h2load"),
-}
+adaptors = [
+    "tcp",
+    "http1",
+]
 
 def print_heading(name):
     print()

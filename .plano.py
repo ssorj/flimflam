@@ -20,12 +20,12 @@
 from flimflam import *
 
 standard_parameters = (
-    CommandParameter("relay", default="skrouterd", positional=False,
-                     help="The intermediary standing between the workload client and server"),
     CommandParameter("workload", default="builtin", positional=False, short_option="w",
                      help="The selected workload"),
+    CommandParameter("relay", default="skrouterd", positional=False,
+                     help="The intermediary standing between the workload client and server"),
     CommandParameter("adaptor", default="tcp", positional=False, # XXX choices
-                     help="The selected adaptor"),
+                     help="The selected protocol adaptor"),
     CommandParameter("jobs", default=2, type=int, positional=False,
                      help="The number of concurrent workload jobs"),
     CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
@@ -223,7 +223,7 @@ def flamegraph(*args, **kwargs):
     print("Go to {} in your browser".format(get_file_url("flamegraph.html")))
     print()
 
-@command(parameters=standard_parameters[2:])
+@command(parameters=standard_parameters[3:])
 def bench(*args, **kwargs):
     """
     Run each workload on each relay and summarize the results
@@ -237,41 +237,47 @@ def bench(*args, **kwargs):
 
     build()
 
-    data = [["Workload", "Relay", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
+    data = [["Workload", "Relay", "Adaptor", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
     for workload in workloads:
         for relay in relays:
-            kwargs["relay"] = relay
-            kwargs["workload"] = workload
+            for adaptor in adaptors:
+                kwargs["workload"] = workload
+                kwargs["relay"] = relay
+                kwargs["adaptor"] = adaptor
 
-            output_dir = run_and_print_summary(kwargs)
-            print()
+                # For now, the http1 adaptor works with h2load and skrouterd only
+                if adaptor == "http1" and (workload != "h2load" or relay != "skrouterd"):
+                    continue
 
-            summary = read_json(join(output_dir, "summary.json"))
-            results = summary["results"]
-            bps, ops, lat = None, None, None
-            r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
+                output_dir = run_and_print_summary(kwargs)
+                print()
 
-            if "bits" in results:
-                bps = format_quantity(results["bits"] / results["duration"])
+                summary = read_json(join(output_dir, "summary.json"))
+                results = summary["results"]
+                bps, ops, lat = None, None, None
+                r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
 
-            if "operations" in results:
-                ops = format_quantity(results["operations"] / results["duration"])
+                if "bits" in results:
+                    bps = format_quantity(results["bits"] / results["duration"])
 
-            if "latency" in results:
-                lat = results["latency"]["average"]
+                if "operations" in results:
+                    ops = format_quantity(results["operations"] / results["duration"])
 
-            if "resources" in summary:
-                r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
-                r1rss = format_quantity(summary["resources"]["relay_1"]["max_rss"], mode="binary")
-                r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
-                r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
+                if "latency" in results:
+                    lat = results["latency"]["average"]
 
-            data.append([workload, relay, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
+                if "resources" in summary:
+                    r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
+                    r1rss = format_quantity(summary["resources"]["relay_1"]["max_rss"], mode="binary")
+                    r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
+                    r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
+
+                data.append([workload, relay, adaptor, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
 
     print("---")
     print_heading("Benchmark results")
-    print_table(data, "llr")
+    print_table(data, "lllr")
     print()
 
 @command
