@@ -231,7 +231,7 @@ def bench(*args, **kwargs):
                 kwargs["adaptor"] = adaptor
 
                 # For now, the http1 adaptor works with h2load and skrouterd only
-                if adaptor == "http1" and (workload != "h2load" or relay != "skrouterd"):
+                if adaptor == "http1" and (workload != "h2load-h1" or relay != "skrouterd"):
                     continue
 
                 output_dir = runner(kwargs)
