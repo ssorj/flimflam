@@ -327,7 +327,7 @@ class Iperf3(Workload):
 class H2load(Workload):
     def check(self, runner=None):
         check_program("h2load", "I can't find h2load.  Run 'dnf install nghttp2'.")
-        check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
+        check_program("nghttpd", "I can't find nghttpd.  Run 'dnf install nghttp2'")
 
     def start_client(self, runner, port):
         self.client_proc = start(f"h2load --warm-up-time {runner.warmup} --duration {runner.duration}"
@@ -337,7 +337,9 @@ class H2load(Workload):
 
     def start_server(self, runner, port):
         write("/tmp/flimflam/http2-server/web/index.txt", "x" * 100)
-        self.server_proc = start(f"nginx -c $PWD/config/http2-server.conf -e /dev/stderr")
+        self.server_proc = start("nghttpd 20002 --no-tls"
+                                 " --htdocs /tmp/flimflam/http2-server/web"
+                                 f" --workers {runner.jobs}")
 
     def stop_client(self, runner):
         # Give h2load lots of extra time to report out
@@ -349,7 +351,7 @@ class H2load(Workload):
 
             sleep(1)
         else:
-            raise Exception("Timed out waiting for output")
+            error("Timed out waiting for output")
 
         super().stop_client(runner)
 
@@ -544,6 +546,7 @@ relays = {
 adaptors = [
     "tcp",
     "http1",
+    "http2",
 ]
 
 def print_heading(name):
