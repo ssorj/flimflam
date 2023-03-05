@@ -8,6 +8,11 @@ the Linux "perf" tools.
 
 ## Overview
 
+<!-- * XXX Does: build the builtin workload, run the workload and relay -->
+<!-- * XXX Does not: build the relay or non-builtin workload -->
+<!-- * XXX The skrouterd under test is the one *you* installed -->
+<!-- * XXX Skrouterd - note the number of worker threads -->
+
 Flimflam's purpose is to enable developers to easily run router
 performance tests and extract performance information, so we can make
 the router faster.
@@ -19,7 +24,7 @@ Flimflam is intended to be good at:
 * Comparing the performance of existing code with some new code you've
   written.
 
-* Seeing how the router performs compared to other proxies.
+* Seeing how the router performs compared to other relays.
 
 Flimflam uses the skrouterd (or nginx) on your executable path, and
 skrouterd uses the Proton on your library path.  Make sure you set
@@ -33,11 +38,11 @@ option to change the relay for a test run.  The options are
 all.
 
 A "workload" in Flimflam terms is a client and server that performs
-some communication, by way of the relay if present.  The options are
-`builtin`, `iperf3`, `h2load`, and `h2load-h1`.  `builtin` is a
-streaming TCP workload.  Its implementation is in the `builtin`
-directory.  `h2load-h1` is a variant of `h2load` that uses HTTP/1
-only.
+some communication by way of the relay (if the relay is not `none`).
+The options are `builtin`, `iperf3`, `h2load`, and `h2load-h1`.
+`builtin` is a streaming TCP workload.  Its implementation is in the
+`builtin` directory.  `h2load-h1` is a variant of `h2load` that uses
+HTTP/1 only.
 
 The workloads have some options.  `--jobs` sets the number of
 concurrent communications (default 2).  `--warmup` sets the spin-up
@@ -104,9 +109,7 @@ commands:
 ~~~
 
 ~~~
-flimflam$ ./plano run --help
-usage: plano run [-h] [-w WORKLOAD] [--relay RELAY] [--adaptor ADAPTOR] [--jobs JOBS] [--warmup SECONDS] [--duration SECONDS]
-                 [--cpu-limit COUNT]
+usage: plano run [-h] [-w WORKLOAD] [-r RELAY] [-p PROTOCOL] [--jobs JOBS] [--warmup SECONDS] [--duration SECONDS] [--cpu-limit COUNT]
 
 Run a workload without capturing any data
 
@@ -114,8 +117,10 @@ options:
   -h, --help            Show this help message and exit
   -w WORKLOAD, --workload WORKLOAD
                         The selected workload (default 'builtin')
-  --relay RELAY         The intermediary standing between the workload client and server (default 'skrouterd')
-  --adaptor ADAPTOR     The selected protocol adaptor (default 'tcp')
+  -r RELAY, --relay RELAY
+                        The intermediary standing between the workload client and server (default 'skrouterd')
+  -p PROTOCOL, --protocol PROTOCOL
+                        The selected protocol (default 'tcp')
   --jobs JOBS           The number of concurrent workload jobs (default 2)
   --warmup SECONDS      The warmup time in seconds (default 5)
   --duration SECONDS    The execution time (excluding warmup) in seconds (default 5)

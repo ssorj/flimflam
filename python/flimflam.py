@@ -23,7 +23,7 @@ class Runner:
     def __init__(self, kwargs):
         self.relay = relays[kwargs["relay"]]
         self.workload = workloads[kwargs["workload"]]
-        self.adaptor = kwargs["adaptor"]
+        self.protocol = kwargs["protocol"]
         self.jobs = kwargs["jobs"]
         self.warmup = kwargs["warmup"]
         self.duration = kwargs["duration"]
@@ -96,7 +96,7 @@ class Runner:
             "configuration": {
                 "workload": self.workload.name,
                 "relay": self.relay.name,
-                "adaptor": self.adaptor,
+                "protocol": self.protocol,
                 "jobs": self.jobs,
                 "warmup": self.warmup,
                 "duration": self.duration,
@@ -132,7 +132,7 @@ class Runner:
         props = [
             ["Workload", config["workload"]],
             ["Relay", config["relay"]],
-            ["Adaptor", config["adaptor"]],
+            ["Protocol", config["protocol"]],
             ["Jobs", config["jobs"]],
             ["Warmup", format_duration(config["warmup"])],
             ["Duration", format_duration(config["duration"])],
@@ -253,8 +253,10 @@ class ProcessMonitor(_threading.Thread):
         return max([x[1] for x in self.samples])
 
 class Workload:
-    def __init__(self, name):
+    def __init__(self, name, protocols):
         self.name = name
+        self.protocols = protocols
+
         self.client_proc = None
         self.server_proc = None
 
@@ -455,8 +457,10 @@ class H2loadH1(Workload):
         return data
 
 class Relay:
-    def __init__(self, name):
+    def __init__(self, name, protocols):
         self.name = name
+        self.protocols = protocols
+
         self.relay_1_proc = None
         self.relay_2_proc = None
 
@@ -481,7 +485,7 @@ class Skrouterd(Relay):
         # XXX Check taskset config
 
     def start_relay_1(self, runner):
-        config_file = f"$PWD/config/skrouterd-{runner.adaptor}-1.conf"
+        config_file = f"$PWD/config/skrouterd-{runner.protocol}-1.conf"
 
         if runner.cpu_limit > 0:
             cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
@@ -490,7 +494,7 @@ class Skrouterd(Relay):
             self.relay_1_proc = start(f"skrouterd --config {config_file}")
 
     def start_relay_2(self, runner):
-        config_file = f"$PWD/config/skrouterd-{runner.adaptor}-2.conf"
+        config_file = f"$PWD/config/skrouterd-{runner.protocol}-2.conf"
 
         if runner.cpu_limit > 0:
             cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
@@ -508,42 +512,43 @@ class Nginx(Relay):
                  "Run 'dnf install nginx-mod-stream'.")
 
         if runner is not None:
-            if runner.adaptor != "tcp":
-                exit("The Nginx relay works with the tcp adaptor only")
-
-            # XXX Check taskset config using echo
+            pass # XXX Check taskset config using echo
 
     def start_relay_1(self, runner):
+        config_file = f"$PWD/config/nginx-{runner.protocol}-1.conf"
+
         if runner.cpu_limit > 0:
             cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
-            self.relay_1_proc = start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx-1.conf -e /dev/stderr")
+            self.relay_1_proc = start(f"taskset --cpu-list {cpus} nginx -c {config_file} -e /dev/stderr")
         else:
-            self.relay_1_proc = start("nginx -c $PWD/config/nginx-1.conf -e /dev/stderr")
+            self.relay_1_proc = start(f"nginx -c {config_file} -e /dev/stderr")
 
     def start_relay_2(self, runner):
+        config_file = f"$PWD/config/nginx-{runner.protocol}-2.conf"
+
         if runner.cpu_limit > 0:
             cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
-            self.relay_2_proc = start(f"taskset --cpu-list {cpus} nginx -c $PWD/config/nginx-2.conf -e /dev/stderr")
+            self.relay_2_proc = start(f"taskset --cpu-list {cpus} nginx -c {config_file} -e /dev/stderr")
         else:
-            self.relay_2_proc = start("nginx -c $PWD/config/nginx-2.conf -e /dev/stderr")
+            self.relay_2_proc = start(f"nginx -c {config_file} -e /dev/stderr")
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
 
 workloads = {
-    "builtin": Builtin("builtin"),
-    "iperf3": Iperf3("iperf3"),
-    "h2load": H2load("h2load"),
-    "h2load-h1": H2loadH1("h2load-h1"),
+    "builtin": Builtin("builtin", ["tcp"]),
+    "iperf3": Iperf3("iperf3", ["tcp"]),
+    "h2load": H2load("h2load", ["tcp", "http2"]),
+    "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1"]),
 }
 
 relays = {
-    "skrouterd": Skrouterd("skrouterd"),
-    "nginx": Nginx("nginx"),
-    "none": Relay("none"),
+    "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2"]),
+    "nginx": Nginx("nginx", ["tcp", "http1"]),
+    "none": Relay("none", ["tcp"]),
 }
 
-adaptors = [
+protocols = [
     "tcp",
     "http1",
     "http2",

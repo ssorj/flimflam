@@ -19,13 +19,13 @@
 
 from flimflam import *
 
-standard_parameters = (
+standard_parameters = [
     CommandParameter("workload", default="builtin", positional=False, short_option="w",
                      help="The selected workload"),
-    CommandParameter("relay", default="skrouterd", positional=False,
+    CommandParameter("relay", default="skrouterd", positional=False, short_option="r",
                      help="The intermediary standing between the workload client and server"),
-    CommandParameter("adaptor", default="tcp", positional=False, # XXX choices
-                     help="The selected protocol adaptor"),
+    CommandParameter("protocol", default="tcp", positional=False, short_option="p", # XXX choices
+                     help="The selected protocol"),
     CommandParameter("jobs", default=2, type=int, positional=False,
                      help="The number of concurrent workload jobs"),
     CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
@@ -34,7 +34,9 @@ standard_parameters = (
                      help="The execution time (excluding warmup) in seconds"),
     CommandParameter("cpu_limit", default=1, type=int, positional=False, metavar="COUNT",
                      help="The max per-process relay CPU usage (0 means no limit)"),
-)
+]
+
+bench_parameters = standard_parameters[3:]
 
 def check_perf():
     check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
@@ -209,7 +211,7 @@ def flamegraph(*args, **kwargs):
     print("Go to {} in your browser".format(get_file_url("flamegraph.html")))
     print()
 
-@command(parameters=standard_parameters[3:])
+@command(parameters=bench_parameters)
 def bench(*args, **kwargs):
     """
     Run each workload on each relay and summarize the results
@@ -221,22 +223,20 @@ def bench(*args, **kwargs):
     for relay in relays.values():
         relay.check()
 
-    data = [["Workload", "Relay", "Adaptor", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
+    data = [["Workload", "Relay", "Protocol", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
-    for workload in workloads:
-        for relay in relays:
-            for adaptor in adaptors:
-                kwargs["workload"] = workload
-                kwargs["relay"] = relay
-                kwargs["adaptor"] = adaptor
-
-                # For now, the http1 adaptor works with h2load and skrouterd only
-                if adaptor == "http1" and (workload != "h2load-h1" or relay != "skrouterd"):
+    for workload in workloads.values():
+        for relay in relays.values():
+            for protocol in protocols:
+                if protocol not in workload.protocols:
                     continue
 
-                # And the http2 adaptor also works with h2load and skrouterd only
-                if adaptor == "http2" and (workload != "h2load" or relay != "skrouterd"):
+                if protocol not in relay.protocols:
                     continue
+
+                kwargs["workload"] = workload.name
+                kwargs["relay"] = relay.name
+                kwargs["protocol"] = protocol
 
                 output_dir = runner(kwargs)
                 print()
@@ -261,7 +261,7 @@ def bench(*args, **kwargs):
                     r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
                     r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
 
-                data.append([workload, relay, adaptor, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
+                data.append([workload.name, relay.name, protocol, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
 
     print("---")
     print_heading("Benchmark results")
@@ -297,7 +297,7 @@ def clean():
 @command(hidden=True)
 def self_test():
     kwargs = {
-        "adaptor": "tcp",
+        "protocol": "tcp",
         "duration": 1,
         "warmup": 1,
         "jobs": 1,
