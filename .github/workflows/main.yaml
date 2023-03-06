@@ -16,6 +16,5 @@ jobs:
       - run: sh scripts/install-skupper-router.sh
       - run: echo "$HOME/.local/sbin" >> "$GITHUB_PATH"
       - run: echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
-      - run: ./plano check --ignore-perf
-      - run: ./plano build
+      - run: ./plano self-test
       - run: ./plano bench --cpu-limit 0

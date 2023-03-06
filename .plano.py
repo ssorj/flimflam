@@ -51,7 +51,7 @@ def check_perf():
     perf_event_paranoid = read("/proc/sys/kernel/perf_event_paranoid")
 
     if perf_event_paranoid != "-1\n":
-        exit("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
+        raise PlanoError("Perf events are not enabled.  Run 'echo -1 > /proc/sys/kernel/perf_event_paranoid' as root.")
 
 @command
 def check(ignore_perf=False):
@@ -306,6 +306,12 @@ def clean():
 
 @command(hidden=True)
 def self_test():
+    run("./plano --help")
+
+    check(ignore_perf=True)
+
+    build()
+
     kwargs = {
         "protocol": "tcp",
         "duration": 1,
@@ -314,8 +320,13 @@ def self_test():
         "cpu_limit": 1,
     }
 
-    for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
-        globals()[name](relay="skrouterd", workload="builtin", **kwargs)
+    try:
+        check_perf()
+    except:
+        warn("Perf tools are not available")
+    else:
+        for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
+            globals()[name](relay="skrouterd", workload="builtin", **kwargs)
 
     for relay in [x.name for x in RELAYS.values() if "tcp" in x.protocols]:
         run_(relay=relay, workload="builtin", **kwargs)
