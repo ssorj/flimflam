@@ -8,11 +8,6 @@ the Linux "perf" tools.
 
 ## Overview
 
-<!-- * XXX Does: build the builtin workload, run the workload and relay -->
-<!-- * XXX Does not: build the relay or non-builtin workload -->
-<!-- * XXX The skrouterd under test is the one *you* installed -->
-<!-- * XXX Skrouterd - note the number of worker threads -->
-
 Flimflam's purpose is to enable developers to easily run router
 performance tests and extract performance information, so we can make
 the router faster.
@@ -21,32 +16,34 @@ Flimflam is intended to be good at:
 
 * Capturing performance data.
 
-* Comparing the performance of existing code with some new code you've
+* Comparing the performance of existing code with new code you've
   written.
 
 * Seeing how the router performs compared to other relays.
 
-Flimflam uses the skrouterd (or nginx) on your executable path, and
-skrouterd uses the Proton on your library path.  Make sure you set
-`PATH` and `LD_LIBARY_PATH` as you want them - that is, where you are
-installing the router and Proton under test.
+Flimflam uses the skrouterd on your executable path, and skrouterd
+uses the Proton on your library path.  Make sure you set `PATH` and
+`LD_LIBARY_PATH` as you want them - that is, where you are installing
+the router and Proton under test.
 
 Flimflam has the notion of a "relay", which is simply an abstract term
 for some kind of router or reverse proxy.  You can use the `--relay`
 option to change the relay for a test run.  The options are
-`skrouterd`, `nginx`, and `none`.  `none` means there's no relay at
-all.
+`skrouterd`, `nghttpx`, `nginx`, and `none`.  `none` means there's no
+relay at all.
 
 A "workload" in Flimflam terms is a client and server that performs
-some communication by way of the relay (if the relay is not `none`).
-The options are `builtin`, `iperf3`, `h2load`, and `h2load-h1`.
-`builtin` is a streaming TCP workload.  Its implementation is in the
-`builtin` directory.  `h2load-h1` is a variant of `h2load` that uses
+some communication by way of the relay.  The options are `builtin`,
+`iperf3`, `h2load`, and `h2load-h1`.  `builtin` is a streaming TCP
+workload.  Its implementation is in the `builtin` directory.  `iperf3`
+is a widely used TCP benchmarking tool.  `h2load` is an HTTP/2
+benchmaring took.  `h2load-h1` is a variant of `h2load` that uses
 HTTP/1 only.
 
-The workloads have some options.  `--jobs` sets the number of
+The workloads have common options.  `--jobs` sets the number of
 concurrent communications (default 2).  `--warmup` sets the spin-up
-time before measuring starts.  `--duration` sets the measurement time.
+time before measuring starts (default 5 seconds).  `--duration` sets
+the measurement time (default 5 seconds).
 
 Each relay process is by default limited to 1 CPU.  Use the
 `--cpu-limit` option to change this.  Workloads have no imposed limit.
@@ -105,7 +102,6 @@ commands:
     bench               Run each workload on each relay and summarize the results
     build               Compile the builtin workload
     clean               Remove build artifacts and output files
-    self-test           [internal]
 ~~~
 
 ~~~
@@ -132,19 +128,19 @@ options:
     ./plano run
     ./plano run --workload iperf3
     ./plano run --workload h2load --relay nginx
-    ./plano run --workload h2load --adaptor http2
+    ./plano run --workload h2load --protocol http2
 
 ## Recording perf data
 
     ./plano record
     ./plano record --workload iperf3
     ./plano record --workload h2load --relay nginx
-    ./plano record --workload h2load --adaptor http2
+    ./plano record --workload h2load --protocol http2
 
 ## Using perf report
 
     # After recording
-    perf report
+    perf report --no-children
 
 ## Benchmarking
 
