@@ -329,17 +329,17 @@ class Iperf3(Workload):
 class H2load(Workload):
     def check(self, runner=None):
         check_program("h2load", "I can't find h2load.  Run 'dnf install nghttp2'.")
-        check_program("nghttpd", "I can't find nghttpd.  Run 'dnf install nghttp2'")
+        check_program("nghttpd", "I can't find nghttpd.  Run 'dnf install nghttp2'.")
 
     def start_client(self, runner, port):
         self.client_proc = start(f"h2load --warm-up-time {runner.warmup} --duration {runner.duration}"
                                  f" --clients {runner.jobs} --threads {runner.jobs}"
-                                 f" http://localhost:{port}/index.txt",
+                                 f" http://127.0.0.1:{port}/index.txt",
                                  stdout=join(runner.output_dir, "output.txt"))
 
     def start_server(self, runner, port):
         write("/tmp/flimflam/http2-server/web/index.txt", "x" * 100)
-        self.server_proc = start("nghttpd 20002 --no-tls"
+        self.server_proc = start("nghttpd 20002 --address 127.0.0.1 --no-tls"
                                  " --htdocs /tmp/flimflam/http2-server/web"
                                  f" --workers {runner.jobs}")
 
@@ -400,7 +400,7 @@ class H2loadH1(Workload):
     def start_client(self, runner, port):
         self.client_proc = start(f"h2load --h1 --warm-up-time {runner.warmup} --duration {runner.duration}"
                                  f" --clients {runner.jobs} --threads {runner.jobs}"
-                                 f" http://localhost:{port}/index.txt",
+                                 f" http://127.0.0.1:{port}/index.txt",
                                  stdout=join(runner.output_dir, "output.txt"))
 
     def start_server(self, runner, port):
@@ -465,7 +465,31 @@ class Relay:
         self.relay_2_proc = None
 
     def check(self, runner=None):
-        pass
+        check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
+
+        if runner is not None:
+            if runner.protocol not in self.protocols:
+                raise PlanoError(f"Relay {self.name} doesn't support protocol {runner.protocol}")
+
+            # XXX Check taskset config using echo
+
+    def start_relay_1(self, runner):
+        command = self.config_relay_1(runner)
+
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
+            command = f"taskset --cpu-list {cpus} {command}"
+
+        self.relay_1_proc = start(command)
+
+    def start_relay_2(self, runner):
+        command = self.config_relay_2(runner)
+
+        if runner.cpu_limit > 0:
+            cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
+            command = f"taskset --cpu-list {cpus} {command}"
+
+        self.relay_2_proc = start(command)
 
     def stop_relay_1(self, runner):
         if self.relay_1_proc is not None:
@@ -479,58 +503,51 @@ class Relay:
 
 class Skrouterd(Relay):
     def check(self, runner=None):
-        check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
+        super().check(runner=runner)
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
-        # XXX Check taskset config
+    def config_relay_1(self, runner):
+        return f"skrouterd --config $PWD/config/skrouterd-{runner.protocol}-1.conf"
 
-    def start_relay_1(self, runner):
-        config_file = f"$PWD/config/skrouterd-{runner.protocol}-1.conf"
+    def config_relay_2(self, runner):
+        return f"skrouterd --config $PWD/config/skrouterd-{runner.protocol}-2.conf"
 
-        if runner.cpu_limit > 0:
-            cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
-            self.relay_1_proc = start(f"taskset --cpu-list {cpus} skrouterd --config {config_file}")
+class Nghttpx(Relay):
+    def check(self, runner=None):
+        super().check(runner=runner)
+        check_program("nghttpx", "I can't find nghttpx.  Run 'dnf install nghttp2'.")
+
+    def config_relay_1(self, runner):
+        if runner.protocol == "http1":
+            return "nghttpx -f127.0.0.1,20001;no-tls -b127.0.0.1,10001 --workers 2 --single-process"
+        elif runner.protocol == "http2":
+            return "nghttpx -f127.0.0.1,20001;no-tls -b127.0.0.1,10001;/;proto=h2 --workers 2 --single-process"
         else:
-            self.relay_1_proc = start(f"skrouterd --config {config_file}")
+            assert False
 
-    def start_relay_2(self, runner):
-        config_file = f"$PWD/config/skrouterd-{runner.protocol}-2.conf"
-
-        if runner.cpu_limit > 0:
-            cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
-            self.relay_2_proc = start(f"taskset --cpu-list {cpus} skrouterd --config {config_file}")
+    def config_relay_2(self, runner):
+        if runner.protocol == "http1":
+            return "nghttpx -f127.0.0.1,10001;no-tls -b127.0.0.1,20002 --workers 2 --single-process"
+        elif runner.protocol == "http2":
+            return "nghttpx -f127.0.0.1,10001;no-tls -b127.0.0.1,20002;/;proto=h2 --workers 2 --single-process"
         else:
-            self.relay_2_proc = start(f"skrouterd --config {config_file}")
+            assert False
 
 class Nginx(Relay):
     def check(self, runner=None):
-        check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
+        super().check(runner=runner)
+
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
         if not exists("/usr/lib64/nginx/modules/ngx_stream_module.so"):
             exit("To use Nginx as a relay, I need the stream module.  "
                  "Run 'dnf install nginx-mod-stream'.")
 
-        if runner is not None:
-            pass # XXX Check taskset config using echo
+    def config_relay_1(self, runner):
+        return f"nginx -c $PWD/config/nginx-{runner.protocol}-1.conf -e /dev/stderr"
 
-    def start_relay_1(self, runner):
-        config_file = f"$PWD/config/nginx-{runner.protocol}-1.conf"
-
-        if runner.cpu_limit > 0:
-            cpus = ",".join(["0", "4", "8", "12"][:runner.cpu_limit])
-            self.relay_1_proc = start(f"taskset --cpu-list {cpus} nginx -c {config_file} -e /dev/stderr")
-        else:
-            self.relay_1_proc = start(f"nginx -c {config_file} -e /dev/stderr")
-
-    def start_relay_2(self, runner):
-        config_file = f"$PWD/config/nginx-{runner.protocol}-2.conf"
-
-        if runner.cpu_limit > 0:
-            cpus = ",".join(["2", "6", "10", "14"][:runner.cpu_limit])
-            self.relay_2_proc = start(f"taskset --cpu-list {cpus} nginx -c {config_file} -e /dev/stderr")
-        else:
-            self.relay_2_proc = start(f"nginx -c {config_file} -e /dev/stderr")
+    def config_relay_2(self, runner):
+        return f"nginx -c $PWD/config/nginx-{runner.protocol}-2.conf -e /dev/stderr"
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
@@ -544,6 +561,7 @@ workloads = {
 
 relays = {
     "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2"]),
+    "nghttpx": Nghttpx("nghttpx", ["http1", "http2"]),
     "nginx": Nginx("nginx", ["tcp", "http1"]),
     "none": Relay("none", ["tcp"]),
 }

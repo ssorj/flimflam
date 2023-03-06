@@ -307,7 +307,7 @@ def self_test():
     for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
         globals()[name](relay="skrouterd", workload="builtin", **kwargs)
 
-    for relay in relays.keys():
+    for relay in [x.name for x in relays.values() if "tcp" in x.protocols]:
         run_(relay=relay, workload="builtin", **kwargs)
 
     for workload in workloads.keys():
