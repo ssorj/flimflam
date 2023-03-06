@@ -21,8 +21,8 @@ from plano import *
 
 class Runner:
     def __init__(self, kwargs):
-        self.relay = relays[kwargs["relay"]]
-        self.workload = workloads[kwargs["workload"]]
+        self.relay = RELAYS[kwargs["relay"]]
+        self.workload = WORKLOADS[kwargs["workload"]]
         self.protocol = kwargs["protocol"]
         self.jobs = kwargs["jobs"]
         self.warmup = kwargs["warmup"]
@@ -40,7 +40,7 @@ class Runner:
         connect_port = 20001
         listen_port = 20002
 
-        if self.relay is relays["none"]:
+        if self.relay is RELAYS["none"]:
             try:
                 connect_port = listen_port
 
@@ -106,7 +106,7 @@ class Runner:
             "results": results,
         }
 
-        if self.relay is not relays["none"]:
+        if self.relay is not RELAYS["none"]:
             summary["resources"] = {
                 "relay_1": {
                     "average_cpu": mon1.get_cpu(),
@@ -552,21 +552,21 @@ class Nginx(Relay):
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
 
-workloads = {
+WORKLOADS = {
     "builtin": Builtin("builtin", ["tcp"]),
     "iperf3": Iperf3("iperf3", ["tcp"]),
     "h2load": H2load("h2load", ["tcp", "http2"]),
     "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1"]),
 }
 
-relays = {
+RELAYS = {
     "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2"]),
     "nghttpx": Nghttpx("nghttpx", ["http1", "http2"]),
     "nginx": Nginx("nginx", ["tcp", "http1"]),
     "none": Relay("none", ["tcp"]),
 }
 
-protocols = [
+PROTOCOLS = [
     "tcp",
     "http1",
     "http2",

@@ -36,7 +36,14 @@ standard_parameters = [
                      help="The max per-process relay CPU usage (0 means no limit)"),
 ]
 
-bench_parameters = standard_parameters[3:]
+bench_parameters = [
+    CommandParameter("workloads", default=",".join(WORKLOADS.keys()), positional=False, short_option="w",
+                     help="The selected workloads (comma-separated list)"),
+    CommandParameter("relays", default=",".join(RELAYS.keys()), positional=False, short_option="r",
+                     help="The selected relays (comma-separated list)"),
+]
+
+bench_parameters += standard_parameters[3:]
 
 def check_perf():
     check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
@@ -56,10 +63,10 @@ def check(ignore_perf=False):
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
     check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
-    for workload in workloads.values():
+    for workload in WORKLOADS.values():
         workload.check()
 
-    for relay in relays.values():
+    for relay in RELAYS.values():
         relay.check()
 
     if not ignore_perf:
@@ -217,17 +224,20 @@ def bench(*args, **kwargs):
     Run each workload on each relay and summarize the results
     """
 
-    for workload in workloads.values():
+    workloads = [x for x in WORKLOADS.values() if x.name in kwargs["workloads"].split(",")]
+    relays = [x for x in RELAYS.values() if x.name in kwargs["relays"].split(",")]
+
+    for workload in workloads:
         workload.check()
 
-    for relay in relays.values():
+    for relay in relays:
         relay.check()
 
     data = [["Workload", "Relay", "Protocol", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
 
-    for workload in workloads.values():
-        for relay in relays.values():
-            for protocol in protocols:
+    for workload in workloads:
+        for relay in relays:
+            for protocol in PROTOCOLS:
                 if protocol not in workload.protocols:
                     continue
 
@@ -307,10 +317,10 @@ def self_test():
     for name in "flamegraph", "stat", "record", "c2c", "mem", "skstat":
         globals()[name](relay="skrouterd", workload="builtin", **kwargs)
 
-    for relay in [x.name for x in relays.values() if "tcp" in x.protocols]:
+    for relay in [x.name for x in RELAYS.values() if "tcp" in x.protocols]:
         run_(relay=relay, workload="builtin", **kwargs)
 
-    for workload in workloads.keys():
+    for workload in WORKLOADS.keys():
         run_(relay="none", workload=workload, **kwargs)
 
     clean()
