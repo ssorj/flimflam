@@ -317,7 +317,7 @@ def self_test():
         "duration": 1,
         "warmup": 1,
         "jobs": 1,
-        "cpu_limit": 1,
+        "cpu_limit": 0,
     }
 
     try:
