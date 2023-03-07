@@ -48,6 +48,9 @@ class Runner:
 
                 await_port(listen_port)
 
+                # Awkward sleep
+                sleep(1)
+
                 self.workload.start_client(self, connect_port)
 
                 procs = [self.workload.client_proc, self.workload.server_proc]
