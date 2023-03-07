@@ -314,7 +314,7 @@ class Iperf3(Workload):
                                  f" --time {runner.warmup + runner.duration} --omit {runner.warmup}")
 
     def start_server(self, runner, port):
-        self.server_proc = start(f"iperf3 --server --port {port}")
+        self.server_proc = start(f"iperf3 --server --bind 127.0.0.1 --port {port}")
 
     def process_output(self, runner):
         output = read_json(join(runner.output_dir, "output.json"))
