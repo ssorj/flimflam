@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,17 +18,16 @@
 # under the License.
 #
 
-from bullseye import *
+import os
+import sys
 
-project.name = "flimflam"
-project.data_dirs = ["builtin", "config"]
-project.test_modules = ["flimflam.tests"]
+if "FLIMFLAM_HOME" not in os.environ:
+    os.environ["FLIMFLAM_HOME"] = "@default_home@"
 
-@command(parent=build)
-def build(*args, **kwargs):
-    parent(*args, **kwargs)
+sys.path.insert(0, os.path.join(os.environ["FLIMFLAM_HOME"], "python"))
 
-    check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
+from plano import PlanoCommand
+from flimflam import commands
 
-    run("gcc builtin/client.c -o build/flimflam/builtin/client -g -O2 -std=c99 -fno-omit-frame-pointer")
-    run("gcc builtin/server.c -o build/flimflam/builtin/server -g -O2 -std=c99 -fno-omit-frame-pointer")
+if __name__ == "__main__":
+    PlanoCommand(commands, description="A tool for examining Skupper router performance").main()

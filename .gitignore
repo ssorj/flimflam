@@ -1,7 +1,3 @@
-/builtin/client
-/builtin/server
-/perf.data
-/perf.data.old
-/flamegraph.html
-/old.flamegraph.html
+/build
+/.coverage
 __pycache__/

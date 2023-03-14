@@ -49,7 +49,7 @@ class Runner:
                 await_port(listen_port)
 
                 # Awkward sleep
-                sleep(1)
+                sleep(0.2)
 
                 self.workload.start_client(self, connect_port)
 
@@ -74,7 +74,7 @@ class Runner:
                 await_port(connect_port)
 
                 # Awkward sleep
-                sleep(1)
+                sleep(0.2)
 
                 self.workload.start_client(self, connect_port)
 
@@ -276,14 +276,14 @@ class Workload:
 class Builtin(Workload):
     def check(self, runner=None):
         if runner is not None:
-            check_exists("builtin/client")
-            check_exists("builtin/server")
+            check_exists("$FLIMFLAM_HOME/builtin/client")
+            check_exists("$FLIMFLAM_HOME/builtin/server")
 
     def start_client(self, runner, port):
-        self.client_proc = start(f"builtin/client {port} {runner.jobs} {runner.output_dir}")
+        self.client_proc = start(f"$FLIMFLAM_HOME/builtin/client {port} {runner.jobs} {runner.output_dir}")
 
     def start_server(self, runner, port):
-        self.server_proc = start(f"builtin/server {port}")
+        self.server_proc = start(f"$FLIMFLAM_HOME/builtin/server {port}")
 
     def process_output(self, runner):
         total = 0
@@ -408,7 +408,7 @@ class H2loadH1(Workload):
 
     def start_server(self, runner, port):
         write("/tmp/flimflam/http1-server/web/index.txt", "x" * 100)
-        self.server_proc = start(f"nginx -c $PWD/config/http1-server.conf -e /dev/stderr")
+        self.server_proc = start(f"nginx -c $FLIMFLAM_HOME/config/http1-server.conf -e /dev/stderr")
 
     def stop_client(self, runner):
         # Give h2load lots of extra time to report out
@@ -510,10 +510,10 @@ class Skrouterd(Relay):
         check_program("skrouterd", "I can't find skrouterd.  Make sure it's on the path.")
 
     def config_relay_1(self, runner):
-        return f"skrouterd --config $PWD/config/skrouterd-{runner.protocol}-1.conf"
+        return f"skrouterd --config $FLIMFLAM_HOME/config/skrouterd-{runner.protocol}-1.conf"
 
     def config_relay_2(self, runner):
-        return f"skrouterd --config $PWD/config/skrouterd-{runner.protocol}-2.conf"
+        return f"skrouterd --config $FLIMFLAM_HOME/config/skrouterd-{runner.protocol}-2.conf"
 
 class Nghttpx(Relay):
     def check(self, runner=None):
@@ -547,10 +547,10 @@ class Nginx(Relay):
                  "Run 'dnf install nginx-mod-stream'.")
 
     def config_relay_1(self, runner):
-        return f"nginx -c $PWD/config/nginx-{runner.protocol}-1.conf -e /dev/stderr"
+        return f"nginx -c $FLIMFLAM_HOME/config/nginx-{runner.protocol}-1.conf -e /dev/stderr"
 
     def config_relay_2(self, runner):
-        return f"nginx -c $PWD/config/nginx-{runner.protocol}-2.conf -e /dev/stderr"
+        return f"nginx -c $FLIMFLAM_HOME/config/nginx-{runner.protocol}-2.conf -e /dev/stderr"
 
 # sockperf under-load -i 127.0.0.1 -p 5001 --tcp
 # sockperf server -i 127.0.0.1 -p 5001 --tcp

@@ -42,7 +42,7 @@ mkdir -p proton-build
 (
     cd proton-build
 
-    cmake ../qpid-proton -DCMAKE_INSTALL_PREFIX=$PREFIX -DENABLE_WARNING_ERROR=OFF -DBUILD_TLS=ON
+    cmake ../qpid-proton -DCMAKE_INSTALL_PREFIX=$PREFIX -DENABLE_WARNING_ERROR=OFF -DBUILD_TLS=ON -DBUILD_CPP=OFF
 
     make -j $(nproc) && make install
 )
