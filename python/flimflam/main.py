@@ -395,7 +395,7 @@ class H2load(Workload):
 
         return data
 
-class H2loadH1(Workload):
+class H2loadH1(H2load):
     def check(self, runner=None):
         check_program("h2load", "I can't find h2load.  Run 'dnf install nghttp2'.")
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
@@ -409,55 +409,6 @@ class H2loadH1(Workload):
     def start_server(self, runner, port):
         write("/tmp/flimflam/http1-server/web/index.txt", "x" * 100)
         self.server_proc = start(f"nginx -c $FLIMFLAM_HOME/config/http1-server.conf -e /dev/stderr")
-
-    def stop_client(self, runner):
-        # Give h2load lots of extra time to report out
-        for i in range(10):
-            output = read(join(runner.output_dir, "output.txt"))
-
-            if "time for request:" in output:
-                break
-
-            sleep(1)
-        else:
-            raise Exception("Timed out waiting for output")
-
-        super().stop_client(runner)
-
-    def process_output(self, runner):
-        output = read_lines(join(runner.output_dir, "output.txt"))
-
-        for line in output:
-            if line.startswith("traffic:"):
-                bits = int(line.split()[2][1:-1]) * 8
-                break
-        else:
-            raise Exception(output)
-
-        for line in output:
-            if line.startswith("requests:"):
-                operations = int(line.split()[1])
-                break
-        else:
-            raise Exception(output)
-
-        for line in output:
-            if line.startswith("time for request:"):
-                average_latency = line.split()[5]
-                break
-        else:
-            raise Exception(output)
-
-        data = {
-            "duration": runner.duration,
-            "bits": bits,
-            "operations": operations,
-            "latency": {
-                "average": average_latency,
-            }
-        }
-
-        return data
 
 class Relay:
     def __init__(self, name, protocols):
