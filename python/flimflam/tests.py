@@ -51,6 +51,10 @@ def run_relay(relay):
             PlanoCommand(commands).main(["run", "--relay", relay, "--protocol", protocol] + standard_options)
 
 @test
+def command_executable():
+    run("flimflam --init-only run")
+
+@test
 def command_options():
     PlanoCommand(commands).main(["--help"])
 
@@ -79,9 +83,9 @@ def command_stat():
 
     run_command("stat")
 
-# @test
-# def command_skstat():
-#     run_command("skstat")
+@test
+def command_skstat():
+    run_command("skstat")
 
 @test
 def command_flamegraph():
