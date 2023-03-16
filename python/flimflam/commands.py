@@ -22,13 +22,7 @@ from . import bench
 
 assert "FLIMFLAM_HOME" in ENV
 
-standard_parameters = [
-    CommandParameter("workload", default="builtin", positional=False, short_option="w",
-                     help="The selected workload"),
-    CommandParameter("relay", default="skrouterd", positional=False, short_option="r",
-                     help="The intermediary standing between the workload client and server"),
-    CommandParameter("protocol", default="tcp", positional=False, short_option="p", # XXX choices
-                     help="The selected protocol"),
+common_parameters = [
     CommandParameter("jobs", default=2, type=int, positional=False,
                      help="The number of concurrent workload jobs"),
     CommandParameter("warmup", default=5, type=int, positional=False, metavar="SECONDS",
@@ -39,18 +33,30 @@ standard_parameters = [
                      help="The max per-process relay CPU usage (0 means no limit)"),
 ]
 
+run_parameters = [
+    CommandParameter("workload", default="builtin", positional=False, short_option="w",
+                     help="The selected workload"),
+    CommandParameter("relay", default="skrouterd", positional=False, short_option="r",
+                     help="The intermediary standing between the workload client and server"),
+    CommandParameter("protocol", default="tcp", positional=False, short_option="p", # XXX choices
+                     help="The selected protocol"),
+] + common_parameters
+
+record_parameters = run_parameters + [
+    CommandParameter("call_graph", default="fp", positional=False, metavar="METHOD",
+                     help="The method for obtaining call stacks ('fp', 'dwarf', or 'lbr')"), # XXX choices
+]
+
 bench_parameters = [
     CommandParameter("workloads", default=",".join(WORKLOADS.keys()), positional=False, short_option="w",
                      help="The selected workloads (comma-separated list)"),
     CommandParameter("relays", default=",".join(RELAYS.keys()), positional=False, short_option="r",
                      help="The selected relays (comma-separated list)"),
-]
+] + common_parameters
 
-bench_parameters += standard_parameters[3:]
-
-def _run(kwargs, capture=None):
+def _run_scenario(kwargs, capture=None):
     if capture is None:
-        def capture(pid1, pid2, duration):
+        def capture(pid1, pid2, duration, call_graph):
             sleep(duration)
 
     runner = Runner(kwargs)
@@ -97,16 +103,16 @@ def check(ignore_perf=False):
     print("Use CFLAGS=-fno-omit-frame-pointer when compiling Proton and the router.")
     print()
 
-@command(parameters=standard_parameters)
+@command(parameters=run_parameters)
 def run_(*args, **kwargs):
     """
     Run a workload without capturing any data
     """
 
-    _run(kwargs)
+    _run_scenario(kwargs)
     print()
 
-@command(parameters=standard_parameters)
+@command(parameters=run_parameters)
 def stat(*args, **kwargs):
     """
     Capture 'perf stat' output
@@ -115,13 +121,13 @@ def stat(*args, **kwargs):
     check_perf()
 
     with temp_file() as output:
-        def capture(pid1, pid2, duration):
+        def capture(pid1, pid2, duration, call_graph):
             run(f"perf stat --detailed --pid {pid1},{pid2} sleep {duration}", output=output)
 
-        _run(kwargs, capture)
+        _run_scenario(kwargs, capture)
         print(read(output))
 
-@command(parameters=standard_parameters)
+@command(parameters=run_parameters)
 def skstat(*args, **kwargs):
     """
     Capture 'skstat' output
@@ -133,19 +139,19 @@ def skstat(*args, **kwargs):
         fail("The skstat command works with skrouterd only")
 
     with temp_file() as output1, temp_file() as output2:
-        def capture(pid1, pid2, duration):
+        def capture(pid1, pid2, duration, call_graph):
             sleep(duration)
             run(f"skstat -b localhost:56721 -m", stdout=output1)
             run(f"skstat -b localhost:56722 -m", stdout=output2)
 
-        _run(kwargs, capture)
+        _run_scenario(kwargs, capture)
 
         print_heading("Router 1")
         print(read(output1))
         print_heading("Router 2")
         print(read(output2))
 
-@command(parameters=standard_parameters)
+@command(parameters=record_parameters)
 def record(*args, **kwargs):
     """
     Capture perf events using 'perf record'
@@ -153,16 +159,16 @@ def record(*args, **kwargs):
 
     check_perf()
 
-    def capture(pid1, pid2, duration):
-        run(f"perf record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+    def capture(pid1, pid2, duration, call_graph):
+        run(f"perf record --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
 
-    _run(kwargs, capture)
+    _run_scenario(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf report --no-children'")
     print()
 
-@command(parameters=standard_parameters)
+@command(parameters=record_parameters)
 def c2c(*args, **kwargs):
     """
     Capture perf events using 'perf c2c'
@@ -170,16 +176,16 @@ def c2c(*args, **kwargs):
 
     check_perf()
 
-    def capture(pid1, pid2, duration):
-        run(f"perf c2c record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+    def capture(pid1, pid2, duration, call_graph):
+        run(f"perf c2c record --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
 
-    _run(kwargs, capture)
+    _run_scenario(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf c2c report'")
     print()
 
-@command(parameters=standard_parameters)
+@command(parameters=record_parameters)
 def mem(*args, **kwargs):
     """
     Capture perf events using 'perf mem'
@@ -187,16 +193,16 @@ def mem(*args, **kwargs):
 
     check_perf()
 
-    def capture(pid1, pid2, duration):
-        run(f"perf mem record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+    def capture(pid1, pid2, duration, call_graph):
+        run(f"perf mem record --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
 
-    _run(kwargs, capture)
+    _run_scenario(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf mem report --no-children'")
     print()
 
-@command(parameters=standard_parameters)
+@command(parameters=record_parameters)
 def flamegraph(*args, **kwargs):
     """
     Generate a flamegraph
@@ -212,10 +218,10 @@ def flamegraph(*args, **kwargs):
     if exists("flamegraph.html"):
         move("flamegraph.html", "old.flamegraph.html")
 
-    def capture(pid1, pid2, duration):
-        run(f"perf script flamegraph --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
+    def capture(pid1, pid2, duration, call_graph):
+        run(f"perf script flamegraph --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
 
-    _run(kwargs, capture)
+    _run_scenario(kwargs, capture)
 
     print_heading("Next step")
 

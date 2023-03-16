@@ -20,8 +20,8 @@
 from .main import *
 from dataclasses import dataclass as _dataclass
 
-def _run_one(kwargs):
-    def capture(pid1, pid2, duration):
+def _run_scenario(kwargs):
+    def capture(pid1, pid2, duration, call_graph):
         sleep(duration)
 
     runner = Runner(kwargs)
@@ -54,7 +54,7 @@ def run(workloads, relays, kwargs):
                 kwargs["relay"] = relay.name
                 kwargs["protocol"] = protocol
 
-                output_dir = _run_one(kwargs)
+                output_dir = _run_scenario(kwargs)
                 print()
 
                 summary = read_json(join(output_dir, "summary.json"))

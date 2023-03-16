@@ -28,6 +28,7 @@ class Runner:
         self.warmup = kwargs["warmup"]
         self.duration = kwargs["duration"]
         self.cpu_limit = kwargs["cpu_limit"]
+        self.call_graph = kwargs.get("call_graph")
 
         self.output_dir = make_temp_dir()
 
@@ -86,7 +87,7 @@ class Runner:
                     sleep(self.warmup)
 
                     with ProcessMonitor(pids[0]) as mon1, ProcessMonitor(pids[1]) as mon2:
-                        capture(pids[0], pids[1], self.duration)
+                        capture(pids[0], pids[1], self.duration, self.call_graph)
             finally:
                 self.workload.stop_client(self)
                 self.workload.stop_server(self)
