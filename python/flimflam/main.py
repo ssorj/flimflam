@@ -618,3 +618,40 @@ def format_quantity(number, mode="decimal"):
 
 def format_percent(number):
     return "{:,.0f}%".format(number * 100)
+
+def print_environment():
+    print_heading("Environment")
+
+    def get_info(executable, option):
+        path = which(executable)
+
+        if path is not None:
+            version = call(f"{path} {option}", quiet=True).strip()
+            version = version.split("\n")[0]
+
+            return "{} [{}]".format(path, version)
+
+        return "-"
+
+    def get_cpu():
+        for line in read_lines("/proc/cpuinfo"):
+            if line.startswith("model name"):
+                return line.split(":")[1].strip()
+
+        return "-"
+
+    props = [
+        ["Flimflam", "{} [1]".format(ARGS[0])],
+        ["Skrouterd", get_info("skrouterd", "--version")],
+        ["H2load", get_info("h2load", "--version")],
+        ["Iperf3", get_info("iperf3", "--version")],
+        ["Nghttp", get_info("nghttp", "--version")],
+        ["Nginx", nvl(which("nginx"), "-")],
+        ["Perf", get_info("perf", "--version")],
+        ["GCC", get_info("gcc", "--version")],
+        ["Distro", read("/etc/system-release").strip()],
+        ["Kernel", call("uname -s -r -v", quiet=True).strip()],
+        ["CPU", get_cpu()],
+    ]
+
+    print_properties(props)

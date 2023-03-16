@@ -61,6 +61,8 @@ def check(ignore_perf=False):
     Check for required programs and system configuration
     """
 
+    print_environment()
+
     check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
     check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
     check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
@@ -79,7 +81,7 @@ def check(ignore_perf=False):
     print("Use CFLAGS=-fno-omit-frame-pointer when compiling Proton and the router.")
     print()
 
-def runner(kwargs, capture=None):
+def runner(kwargs, capture=None, verbose=True):
     if capture is None:
         def capture(pid1, pid2, duration):
             sleep(duration)
@@ -87,6 +89,9 @@ def runner(kwargs, capture=None):
     runner = Runner(kwargs)
 
     output_dir = runner.run(capture)
+
+    if verbose:
+        print_environment()
 
     runner.print_summary()
 
@@ -247,7 +252,7 @@ def bench(*args, **kwargs):
                 kwargs["relay"] = relay.name
                 kwargs["protocol"] = protocol
 
-                output_dir = runner(kwargs)
+                output_dir = runner(kwargs, verbose=False)
                 print()
 
                 summary = read_json(join(output_dir, "summary.json"))
@@ -273,6 +278,7 @@ def bench(*args, **kwargs):
                 data.append([workload.name, relay.name, protocol, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
 
     print("---")
+    print_environment()
     print_heading("Benchmark results")
     print_table(data, "lllr")
     print()
