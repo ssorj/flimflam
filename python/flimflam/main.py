@@ -531,69 +531,6 @@ def print_heading(name):
     print(name.upper())
     print()
 
-from dataclasses import dataclass as _dataclass
-
-def print_table(data, align=None):
-    column_count = 0
-
-    for row in data:
-        column_count = max(column_count, len(row))
-
-    @_dataclass
-    class Column:
-        width: int
-        align: str
-
-    if align is None:
-        align = "l"
-
-    assert len(align) > 0
-
-    if len(align) < column_count:
-        align += align[-1] * (column_count - len(align))
-
-    columns = [Column(0, align[i]) for i in range(column_count)]
-    placeholder = "-"
-    padding = 3
-
-    for row in data:
-        for j, column in enumerate(columns):
-            try:
-                datum = row[j]
-            except IndexError:
-                datum = placeholder
-
-            column.width = max(column.width, len(str(datum)))
-
-    for i, row in enumerate(data):
-        for j, column in enumerate(columns):
-            try:
-                datum = row[j]
-            except IndexError:
-                datum = placeholder
-
-            if datum is None:
-                datum = placeholder
-
-            if column.align == "l":
-                print(str(datum).ljust(column.width), end="")
-            else:
-                print(str(datum).rjust(column.width), end="")
-
-            if j < len(columns) - 1:
-                print(" " * padding, end="")
-
-        print()
-
-        if i == 0:
-            for j, column in enumerate(columns):
-                print("-" * column.width, end="")
-
-                if j < len(columns) - 1:
-                    print("-" * padding, end="")
-
-            print()
-
 def format_quantity(number, mode="decimal"):
     if mode == "decimal":
         tiers = (

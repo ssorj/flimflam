@@ -18,6 +18,7 @@
 #
 
 from .main import *
+from . import bench
 
 assert "FLIMFLAM_HOME" in ENV
 
@@ -46,6 +47,21 @@ bench_parameters = [
 ]
 
 bench_parameters += standard_parameters[3:]
+
+def _run(kwargs, capture=None):
+    if capture is None:
+        def capture(pid1, pid2, duration):
+            sleep(duration)
+
+    runner = Runner(kwargs)
+
+    output_dir = runner.run(capture)
+
+    print_environment()
+
+    runner.print_summary()
+
+    return output_dir
 
 def check_perf():
     check_program("perf", "I can't find the perf tools.  Run 'dnf install perf'.")
@@ -81,29 +97,13 @@ def check(ignore_perf=False):
     print("Use CFLAGS=-fno-omit-frame-pointer when compiling Proton and the router.")
     print()
 
-def runner(kwargs, capture=None, verbose=True):
-    if capture is None:
-        def capture(pid1, pid2, duration):
-            sleep(duration)
-
-    runner = Runner(kwargs)
-
-    output_dir = runner.run(capture)
-
-    if verbose:
-        print_environment()
-
-    runner.print_summary()
-
-    return output_dir
-
 @command(parameters=standard_parameters)
 def run_(*args, **kwargs):
     """
     Run a workload without capturing any data
     """
 
-    runner(kwargs)
+    _run(kwargs)
     print()
 
 @command(parameters=standard_parameters)
@@ -118,7 +118,7 @@ def stat(*args, **kwargs):
         def capture(pid1, pid2, duration):
             run(f"perf stat --detailed --pid {pid1},{pid2} sleep {duration}", output=output)
 
-        runner(kwargs, capture)
+        _run(kwargs, capture)
         print(read(output))
 
 @command(parameters=standard_parameters)
@@ -138,7 +138,7 @@ def skstat(*args, **kwargs):
             run(f"skstat -b localhost:56721 -m", stdout=output1)
             run(f"skstat -b localhost:56722 -m", stdout=output2)
 
-        runner(kwargs, capture)
+        _run(kwargs, capture)
 
         print_heading("Router 1")
         print(read(output1))
@@ -156,7 +156,7 @@ def record(*args, **kwargs):
     def capture(pid1, pid2, duration):
         run(f"perf record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    runner(kwargs, capture)
+    _run(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf report --no-children'")
@@ -173,7 +173,7 @@ def c2c(*args, **kwargs):
     def capture(pid1, pid2, duration):
         run(f"perf c2c record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    runner(kwargs, capture)
+    _run(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf c2c report'")
@@ -190,7 +190,7 @@ def mem(*args, **kwargs):
     def capture(pid1, pid2, duration):
         run(f"perf mem record --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    runner(kwargs, capture)
+    _run(kwargs, capture)
 
     print_heading("Next step")
     print("Run 'perf mem report --no-children'")
@@ -215,7 +215,7 @@ def flamegraph(*args, **kwargs):
     def capture(pid1, pid2, duration):
         run(f"perf script flamegraph --freq 997 --call-graph fp --pid {pid1},{pid2} sleep {duration}")
 
-    runner(kwargs, capture)
+    _run(kwargs, capture)
 
     print_heading("Next step")
 
@@ -223,7 +223,7 @@ def flamegraph(*args, **kwargs):
     print()
 
 @command(parameters=bench_parameters)
-def bench(*args, **kwargs):
+def bench_(*args, **kwargs):
     """
     Run each workload on each relay and summarize the results
     """
@@ -231,54 +231,4 @@ def bench(*args, **kwargs):
     workloads = [x for x in WORKLOADS.values() if x.name in kwargs["workloads"].split(",")]
     relays = [x for x in RELAYS.values() if x.name in kwargs["relays"].split(",")]
 
-    for workload in workloads:
-        workload.check()
-
-    for relay in relays:
-        relay.check()
-
-    data = [["Workload", "Relay", "Protocol", "Bits/s", "Ops/s", "Lat*", "R1 CPU", "R1 RSS", "R2 CPU", "R2 RSS"]]
-
-    for workload in workloads:
-        for relay in relays:
-            for protocol in PROTOCOLS:
-                if protocol not in workload.protocols:
-                    continue
-
-                if protocol not in relay.protocols:
-                    continue
-
-                kwargs["workload"] = workload.name
-                kwargs["relay"] = relay.name
-                kwargs["protocol"] = protocol
-
-                output_dir = runner(kwargs, verbose=False)
-                print()
-
-                summary = read_json(join(output_dir, "summary.json"))
-                results = summary["results"]
-                bps, ops, lat = None, None, None
-                r1cpu, r1rss, r2cpu, r2rss = None, None, None, None
-
-                if "bits" in results:
-                    bps = format_quantity(results["bits"] / results["duration"])
-
-                if "operations" in results:
-                    ops = format_quantity(results["operations"] / results["duration"])
-
-                if "latency" in results:
-                    lat = results["latency"]["average"]
-
-                if "resources" in summary:
-                    r1cpu = format_percent(summary["resources"]["relay_1"]["average_cpu"])
-                    r1rss = format_quantity(summary["resources"]["relay_1"]["max_rss"], mode="binary")
-                    r2cpu = format_percent(summary["resources"]["relay_2"]["average_cpu"])
-                    r2rss = format_quantity(summary["resources"]["relay_2"]["max_rss"], mode="binary")
-
-                data.append([workload.name, relay.name, protocol, bps, ops, lat, r1cpu, r1rss, r2cpu, r2rss])
-
-    print("---")
-    print_environment()
-    print_heading("Benchmark results")
-    print_table(data, "lllr")
-    print()
+    bench.run(workloads, relays, kwargs)
