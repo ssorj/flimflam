@@ -3,8 +3,8 @@
 [![main](https://github.com/ssorj/flimflam/actions/workflows/main.yaml/badge.svg)](https://github.com/ssorj/flimflam/actions/workflows/main.yaml)
 
 Flimflam is a tool for examining Skupper router performance.  It
-combines a standard workload with scripting to capture metrics using
-the Linux "perf" tools.
+combines standard workloads and a typical router configuration with
+scripting to capture metrics using the Linux "perf" tools.
 
 ## Overview
 
@@ -54,9 +54,9 @@ C -> R1 -> R2 -> S
 Each relay process is by default limited to 1 CPU.  Use the
 `--cpu-limit` option to change this.  Workloads have no imposed limit.
 
-**Note!**  It's important to build the router and Proton under test
+**Note!** It's important to build the router and Proton under test
 with frame pointers enabled.  Otherwise, it's difficult to get
-reliable call stacks for flamegraphs and perf report.
+reliable call stacks for flamegraphs and `perf report`.
 
 ## Installation
 
@@ -191,7 +191,7 @@ These produce a `flamegraph.html` file in the current directory.
     flimflam bench --relays skrouterd
     flimflam bench --workloads builtin,iperf3
 
-## Ideas to consider
+## Things to try when profiling
 
 Try compiling with `CFLAGS=-fno-inline` before you capture data.  This
 will overstate the cost of small, frequently called functions, but it
