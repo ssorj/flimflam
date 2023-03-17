@@ -1,3 +1,7 @@
-/build
 /.coverage
+/build
+/flamegraph.html
+/old.flamegraph.html
+/perf.data
+/perf.data.old
 __pycache__/
