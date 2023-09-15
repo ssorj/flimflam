@@ -84,19 +84,48 @@ def check(ignore_perf=False):
     """
 
     print_environment()
+    print()
 
-    check_program("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
-    check_program("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
-    check_program("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
+    errors = list()
+
+    def check(program, message):
+        try:
+            check_program(program, message)
+        except PlanoError:
+            errors.append(message)
+
+    check("gcc", "I can't find gcc.  Run 'dnf install gcc'.")
+    check("pidstat", "I can't find pidstat.  Run 'dnf install sysstat'.")
+    check("taskset", "I can't find taskset.  Run 'dnf install util-linux-core'.")
 
     for workload in WORKLOADS.values():
-        workload.check()
+        try:
+            workload.check()
+        except PlanoError as e:
+            errors.append(e.message)
 
     for relay in RELAYS.values():
-        relay.check()
+        try:
+            relay.check()
+        except PlanoError as e:
+            errors.append(e.message)
 
     if not ignore_perf:
-        check_perf()
+        try:
+            check_perf()
+        except PlanoError as e:
+            errors.append(e.message)
+
+    if errors:
+        print("CHECK FAILED")
+        print()
+
+        for error in errors:
+            print(error)
+
+        exit(1)
+    else:
+        print("CHECK PASSED")
 
     print_heading("Note!")
     print("To reliably get stack traces, it is important to compile with frame pointers.")

@@ -495,8 +495,8 @@ class Nginx(Relay):
         check_program("nginx", "I can't find nginx.  Run 'dnf install nginx'.")
 
         if not exists("/usr/lib64/nginx/modules/ngx_stream_module.so"):
-            exit("To use Nginx as a relay, I need the stream module.  "
-                 "Run 'dnf install nginx-mod-stream'.")
+            raise PlanoError("To use Nginx as a relay, I need the stream module.  "
+                             "Run 'dnf install nginx-mod-stream'.")
 
     def config_relay_1(self, runner):
         return f"nginx -c $FLIMFLAM_HOME/config/nginx-{runner.protocol}-1.conf -e /dev/stderr"
