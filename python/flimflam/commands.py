@@ -162,6 +162,7 @@ def skstat(*args, **kwargs):
     Capture 'skstat' output
     """
 
+    check_module("proton")
     check_program("skstat", "I can't find skstat.  Make sure it's on the path.")
 
     if kwargs["relay"] != "skrouterd":
