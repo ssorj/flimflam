@@ -508,14 +508,14 @@ class Nginx(Relay):
 # sockperf server -i 127.0.0.1 -p 5001 --tcp
 
 WORKLOADS = {
-    "builtin": Builtin("builtin", ["tcp"]),
-    "iperf3": Iperf3("iperf3", ["tcp"]),
-    "h2load": H2load("h2load", ["tcp", "http2"]),
-    "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1"]),
+    "builtin": Builtin("builtin", ["tcp", "legacy"]),
+    "iperf3": Iperf3("iperf3", ["tcp", "legacy"]),
+    "h2load": H2load("h2load", ["tcp", "http2", "legacy"]),
+    "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1", "legacy"]),
 }
 
 RELAYS = {
-    "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2"]),
+    "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2", "legacy"]),
     "nghttpx": Nghttpx("nghttpx", ["http1", "http2"]),
     "nginx": Nginx("nginx", ["tcp", "http1"]),
     "none": Relay("none", ["tcp"]),
@@ -523,6 +523,7 @@ RELAYS = {
 
 PROTOCOLS = [
     "tcp",
+    "legacy",
     "http1",
     "http2",
 ]
