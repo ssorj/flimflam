@@ -316,6 +316,15 @@ class Iperf3(Workload):
         self.client_proc = start(f"iperf3 --client 127.0.0.1 --port {port} --parallel {runner.jobs}"
                                  f" --json --logfile {runner.output_dir}/output.json"
                                  f" --time {runner.warmup + runner.duration} --omit {runner.warmup}")
+    def stop_client(self, runner):
+        # The iperf3 client will stop by itself at the conclusion of
+        # the test.
+        if self.client_proc is not None:
+            try:
+                self.client_proc.wait(timeout=10.0)
+            except:
+                error("Timed out waiting for iperf3 client to exit")
+                super().stop_client(runner)
 
     def start_server(self, runner, port):
         self.server_proc = start(f"iperf3 --server --bind 127.0.0.1 --port {port}")
@@ -324,8 +333,8 @@ class Iperf3(Workload):
         output = read_json(join(runner.output_dir, "output.json"))
 
         summary = {
-            "duration": output["end"]["sum_sent"]["seconds"],
-            "bits": output["end"]["sum_sent"]["bytes"] * 8,
+            "duration": output["end"]["sum_received"]["seconds"],
+            "bits": output["end"]["sum_received"]["bytes"] * 8,
         }
 
         return summary
