@@ -17,10 +17,15 @@
  * under the License.
  */
 
+#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200112L
+
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,17 +38,23 @@ typedef struct thread_context {
     int socket;
 } thread_context_t;
 
+static volatile sig_atomic_t running = true;
+
+static void signal_handler(int signum) {
+    running = false;
+}
+
 void* run(void* data) {
     int sock = ((thread_context_t*) data)->socket;
     char* buffer = (char*) malloc(BUFFER_SIZE);
 
-    int opt = 1;
-    int err = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void*) &opt, sizeof(opt));
-    if (err) goto egress;
-
-    while (1) {
+    while (running) {
         ssize_t received = recv(sock, buffer, BUFFER_SIZE, 0);
-        if (received < 0) goto egress;
+
+        if (received == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            else goto egress;
+        }
 
         if (received == 0) {
             printf("server: Connection closed by peer\n");
@@ -72,6 +83,10 @@ int main(size_t argc, char** argv) {
         return 1;
     }
 
+    signal(SIGINT, signal_handler);
+    signal(SIGQUIT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     int port = atoi(argv[1]);
 
     int server_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -96,11 +111,19 @@ int main(size_t argc, char** argv) {
 
     printf("server: Listening for connections on port %d\n", port);
 
-    while (1) {
+    while (running) {
         int sock = accept(server_sock, NULL, NULL);
         if (sock < 0) goto egress;
 
         printf("server: Connection accepted\n");
+
+        int opt = 1;
+        err = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void*) &opt, sizeof(opt));
+        if (err) goto egress;
+
+        struct timeval tv = {.tv_sec = 1};
+        err = setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*) &tv, sizeof(tv));
+        if (err) goto egress;
 
         pthread_t* thread = malloc(sizeof(pthread_t));
         thread_context_t* context = malloc(sizeof(thread_context_t));

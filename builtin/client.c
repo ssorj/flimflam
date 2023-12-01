@@ -18,10 +18,13 @@
  */
 
 #define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200112L
 
 #include <errno.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,13 +40,19 @@ typedef struct thread_context {
     char* output_dir;
 } thread_context_t;
 
+static volatile sig_atomic_t running = true;
+
+static void signal_handler(int signum) {
+    running = false;
+}
+
 void* run_sender(void* data) {
     int sock = ((thread_context_t*) data)->socket;
 
     char* buffer = (char*) malloc(BUFFER_SIZE);
     memset(buffer, 'x', BUFFER_SIZE);
 
-    while (1) {
+    while (running) {
         ssize_t sent = send(sock, buffer, BUFFER_SIZE, 0);
         if (sent < 0) break;
     }
@@ -53,6 +62,7 @@ void* run_sender(void* data) {
     }
 
     free(buffer);
+
 }
 
 void* run_receiver(void* data) {
@@ -61,7 +71,6 @@ void* run_receiver(void* data) {
     char* output_dir = ((thread_context_t*) data)->output_dir;
 
     char* buffer = (char*) malloc(BUFFER_SIZE);
-    memset(buffer, 'x', BUFFER_SIZE);
 
     char transfers_file[256];
     snprintf(transfers_file, 256, "%s/transfers.%d.csv", output_dir, id);
@@ -71,9 +80,13 @@ void* run_receiver(void* data) {
 
     size_t total_received = 0;
 
-    while (1) {
-        ssize_t received = recv(sock, buffer, BUFFER_SIZE, MSG_WAITALL);
-        if (received < 0) goto egress;
+    while (running) {
+        ssize_t received = recv(sock, buffer, BUFFER_SIZE, 0);
+
+        if (received == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            else goto egress;
+        }
 
         if (received == 0) {
             printf("client: Disconnected\n");
@@ -83,7 +96,6 @@ void* run_receiver(void* data) {
         total_received += received;
 
         fprintf(transfers, "%d,%lu\n", received, total_received);
-        fflush(transfers);
     }
 
 egress:
@@ -102,6 +114,10 @@ int main(size_t argc, char** argv) {
         return 1;
     }
 
+    signal(SIGINT, signal_handler);
+    signal(SIGQUIT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     int port = atoi(argv[1]);
     int jobs = atoi(argv[2]);
     char* output_dir = argv[3];
@@ -111,8 +127,13 @@ int main(size_t argc, char** argv) {
     thread_context_t contexts[jobs];
 
     for (int i = 0; i < jobs; i++) {
+        int err;
         int sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) goto egress;
+
+        struct timeval tv = {.tv_sec = 1};
+        err = setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*) &tv, sizeof(tv));
+        if (err) goto egress;
 
         contexts[i] = (thread_context_t) {
             .id = i,
@@ -121,8 +142,7 @@ int main(size_t argc, char** argv) {
             .output_dir = output_dir,
         };
 
-        struct sockaddr_in addr = (struct sockaddr_in) {
-            0,
+        struct sockaddr_in addr = {
             .sin_family = AF_INET,
             .sin_addr.s_addr = htonl(INADDR_LOOPBACK),
             .sin_port = htons(port)
@@ -130,7 +150,7 @@ int main(size_t argc, char** argv) {
 
         printf("client: Connecting to port %d\n", port);
 
-        int err = connect(sock, (const struct sockaddr*) &addr, sizeof(addr));
+        err = connect(sock, (const struct sockaddr*) &addr, sizeof(addr));
         if (err) goto egress;
 
         printf("client: Connected\n");
