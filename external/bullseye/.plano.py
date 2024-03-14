@@ -49,7 +49,7 @@ def coverage():
     clean()
 
     with working_env(PYTHONPATH=get_absolute_path("python")):
-        run(f"coverage run --include python/\* {which('plano-test')} -m bullseye.tests", stash=True)
+        run(f"coverage run --include python/* {which('plano-test')} -m bullseye.tests", stash=True)
 
     run("coverage report")
     run("coverage html")

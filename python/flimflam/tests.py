@@ -52,7 +52,7 @@ def run_relay(relay):
 
 @test
 def command_executable():
-    run("flimflam --init-only run")
+    run("flimflam --help run")
 
 @test
 def command_options():

@@ -23,14 +23,14 @@ from .command import *
 import argparse as _argparse
 import asyncio as _asyncio
 import fnmatch as _fnmatch
+import functools as _functools
 import importlib as _importlib
 import inspect as _inspect
+import sys as _sys
 import traceback as _traceback
 
 class PlanoTestCommand(BaseCommand):
     def __init__(self, test_modules=[]):
-        super(PlanoTestCommand, self).__init__()
-
         self.test_modules = test_modules
 
         if _inspect.ismodule(self.test_modules):
@@ -55,9 +55,22 @@ class PlanoTestCommand(BaseCommand):
                                  help="Exit on the first failure encountered in a test run")
         self.parser.add_argument("--iterations", metavar="COUNT", type=int, default=1,
                                  help="Run the tests COUNT times (default 1)")
+        self.parser.add_argument("--verbose", action="store_true",
+                                 help="Print detailed logging to the console")
+        self.parser.add_argument("--quiet", action="store_true",
+                                 help="Print no logging to the console")
 
     def parse_args(self, args):
         return self.parser.parse_args(args)
+
+    def configure_logging(self, args):
+        if args.verbose:
+            return "notice", None
+
+        if args.quiet:
+            return "error", None
+
+        return "warning", None
 
     def init(self, args):
         self.list_only = args.list
@@ -68,6 +81,8 @@ class PlanoTestCommand(BaseCommand):
         self.timeout = args.timeout
         self.fail_fast = args.fail_fast
         self.iterations = args.iterations
+        self.verbose = args.verbose
+        self.quiet = args.quiet
 
         try:
             for name in args.module:
@@ -90,15 +105,20 @@ class PlanoTestCommand(BaseCommand):
 class PlanoTestSkipped(Exception):
     pass
 
-def test(_function=None, name=None, timeout=None, disabled=False):
+def test(_function=None, name=None, module=None, timeout=None, disabled=False):
     class Test:
         def __init__(self, function):
             self.function = function
-            self.name = nvl(name, self.function.__name__.rstrip("_").replace("_", "-"))
+            self.name = name
+            self.module = module
             self.timeout = timeout
             self.disabled = disabled
 
-            self.module = _inspect.getmodule(self.function)
+            if self.name is None:
+                self.name = self.function.__name__.strip("_").replace("_", "-")
+
+            if self.module is None:
+                self.module = _inspect.getmodule(self.function)
 
             if not hasattr(self.module, "_plano_tests"):
                 self.module._plano_tests = list()
@@ -122,6 +142,9 @@ def test(_function=None, name=None, timeout=None, disabled=False):
         return Test
     else:
         return Test(_function)
+
+def add_test(name, func, *args, **kwargs):
+    test(_functools.partial(func, *args, **kwargs), name=name, module=_inspect.getmodule(func))
 
 def skip_test(reason=None):
     if _inspect.stack()[2].frame.f_locals["unskipped"]:
@@ -227,17 +250,25 @@ def run_tests(modules, include="*", exclude=(), enable=(), unskip=(), test_timeo
         print_properties(props)
         print()
 
+    stop = False
+
     for module in modules:
+        if stop:
+            break
+
         if verbose:
             notice("Running tests from module {} (file {})", repr(module.__name__), repr(module.__file__))
         elif not quiet:
             cprint("=== Module {} ===".format(repr(module.__name__)), color="cyan")
 
         if not hasattr(module, "_plano_tests"):
-            warn("Module {} has no tests", repr(module.__name__))
+            warning("Module {} has no tests", repr(module.__name__))
             continue
 
         for test in module._plano_tests:
+            if stop:
+                break
+
             if test.disabled and not any([_fnmatch.fnmatchcase(test.name, x) for x in enable]):
                 continue
 
@@ -247,7 +278,7 @@ def run_tests(modules, include="*", exclude=(), enable=(), unskip=(), test_timeo
 
             if included and not excluded:
                 test_run.tests.append(test)
-                _run_test(test_run, test, unskipped)
+                stop = _run_test(test_run, test, unskipped)
 
         if not verbose and not quiet:
             print()

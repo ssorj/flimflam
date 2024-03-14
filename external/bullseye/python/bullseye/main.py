@@ -73,10 +73,9 @@ def configure_file(input_file, output_file, substitutions, quiet=False):
     return output_file
 
 _prefix_param = CommandParameter("prefix", help="The base path for installed files", default=_default_prefix)
-_verbose_param = CommandParameter("verbose", help="Print detailed logging to the console")
 
-@command(parameters=(_prefix_param, _verbose_param))
-def build(prefix=None, verbose=False):
+@command(parameters=(_prefix_param,))
+def build(prefix=None):
     check_project()
 
     build_file = join(project.build_dir, "build.json")
@@ -159,11 +158,11 @@ def coverage():
 
     print("OUTPUT:", get_file_url("htmlcov/index.html"))
 
-@command(parameters=(CommandParameter("staging_dir", help="A path prepended to installed files"), _prefix_param, _verbose_param))
-def install(staging_dir="", prefix=None, verbose=False):
+@command(parameters=(CommandParameter("staging_dir", help="A path prepended to installed files"), _prefix_param))
+def install(staging_dir="", prefix=None):
     check_project()
 
-    build(prefix=prefix, verbose=verbose)
+    build(prefix=prefix)
 
     assert is_dir(project.build_dir), list_dir()
 

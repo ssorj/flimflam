@@ -14,8 +14,11 @@ jobs:
       - run: dnf -y install iperf3 nghttp2 nginx nginx-mod-stream
       - run: dnf -y install cmake cyrus-sasl-devel cyrus-sasl-plain gcc-c++ git make libnghttp2-devel libunwind-devel libuuid-devel libwebsockets-devel openssl-devel python-devel python-qpid-proton
       - run: sh scripts/install-skupper-router.sh
-      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - run: echo "$HOME/.local/sbin" >> "$GITHUB_PATH"
-      - run: echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
+      - name: Set up environment
+        run: |
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/sbin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=$HOME/.local/lib64" >> "$GITHUB_ENV"
+          echo "PLANO_COLOR=1" >> "$GITHUB_ENV"
       - run: ./plano install
       - run: flimflam-self-test

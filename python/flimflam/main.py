@@ -364,7 +364,7 @@ class H2load(Workload):
             if "time for request:" in output:
                 break
 
-            sleep(1)
+            sleep(5)
         else:
             error("Timed out waiting for output")
 

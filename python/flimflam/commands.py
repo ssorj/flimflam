@@ -114,7 +114,7 @@ def check(ignore_perf=False):
         try:
             check_perf()
         except PlanoError as e:
-            errors.append(e.message)
+            errors.append(str(e))
 
     if errors:
         print("CHECK FAILED")
