@@ -23,7 +23,7 @@ from .main import *
 from . import commands
 
 standard_options = [
-    "--duration", "1",
+    "--duration", "2",
     "--warmup", "0",
     "--jobs", "1",
     "--cpu-limit", "0"
