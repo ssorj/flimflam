@@ -24,7 +24,7 @@ from . import commands
 
 standard_options = [
     "--duration", "2",
-    "--warmup", "0",
+    "--warmup", "1",
     "--jobs", "1",
     "--cpu-limit", "0"
 ]
