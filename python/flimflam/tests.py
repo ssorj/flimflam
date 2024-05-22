@@ -113,6 +113,10 @@ def workload_builtin():
     run_workload("builtin")
 
 @test
+def workload_connection_rate():
+    run_workload("connection-rate")
+
+@test
 def workload_iperf3():
     run_workload("iperf3")
 

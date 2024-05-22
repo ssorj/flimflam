@@ -43,6 +43,10 @@ def run(workloads, relays, kwargs):
 
     for workload in workloads:
         for relay in relays:
+            if workload.name == 'connection-rate' :
+                if not relay.name == 'skrouterd' :
+                    continue
+
             for protocol in PROTOCOLS:
                 if protocol not in workload.protocols:
                     continue
@@ -64,6 +68,12 @@ def run(workloads, relays, kwargs):
 
                 if "bits" in results:
                     bps = format_quantity(results["bits"] / results["duration"])
+                
+                # In the case of Connection Rate, overload the 'bps' field to 
+                # mean 'connections per second', so it will fit in the benchmark
+                # chart with everything else.
+                if "cnxs" in results:
+                    bps = format_quantity(results["cnxs"] / results["duration"])
 
                 if "operations" in results:
                     ops = format_quantity(results["operations"] / results["duration"])
