@@ -20,7 +20,7 @@
 from bullseye import *
 
 project.name = "flimflam"
-project.data_dirs = ["builtin", "config"]
+project.data_dirs = ["builtin", "config", "connection_rate"]
 project.test_modules = ["flimflam.tests"]
 
 @command(parent=build)
@@ -31,3 +31,6 @@ def build(*args, **kwargs):
 
     run("gcc builtin/client.c -o build/flimflam/builtin/client -g -O2 -std=c99 -fno-omit-frame-pointer")
     run("gcc builtin/server.c -o build/flimflam/builtin/server -g -O2 -std=c99 -fno-omit-frame-pointer")
+
+    run("gcc connection_rate/client.c -o build/flimflam/connection_rate/client -g -O2 -std=c99 -fno-omit-frame-pointer")
+    run("gcc connection_rate/server.c -o build/flimflam/connection_rate/server -g -O2 -std=c99 -fno-omit-frame-pointer")

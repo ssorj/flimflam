@@ -147,7 +147,7 @@ Run each workload on each relay and summarize the results
 options:
   -h, --help            Show this help message and exit
   -w WORKLOADS, --workloads WORKLOADS
-                        The selected workloads (comma-separated list) (default 'builtin,iperf3,h2load,h2load-h1')
+                        The selected workloads (comma-separated list) (default 'builtin,connection-rate,iperf3,h2load,h2load-h1')
   -r RELAYS, --relays RELAYS
                         The selected relays (comma-separated list) (default 'skrouterd,nghttpx,nginx,none')
   --jobs JOBS           The number of concurrent workload jobs (default 2)

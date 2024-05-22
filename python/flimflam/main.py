@@ -160,6 +160,12 @@ class Runner:
                 ["Bits/s", format_quantity(results["bits"] / results["duration"])],
             ]
 
+        if "cnxs" in results:
+            props += [
+                ["Cnxs", format_quantity(results["cnxs"])],
+                ["Cnxs/s", format_quantity(results["cnxs"] / results["duration"])],
+            ]
+
         if "operations" in results:
             props += [
                 ["Operations", format_quantity(results["operations"])],
@@ -307,6 +313,42 @@ class Builtin(Workload):
         }
 
         return summary
+
+class ConnectionRate(Workload):
+    def check(self, runner=None):
+        if runner is not None:
+            check_exists("$FLIMFLAM_HOME/connection_rate/client")
+            check_exists("$FLIMFLAM_HOME/connection_rate/server")
+
+    def start_client(self, runner, port):
+        self.client_proc = start(f"$FLIMFLAM_HOME/connection_rate/client {port} {runner.jobs} {runner.output_dir}")
+
+    def start_server(self, runner, port):
+        self.server_proc = start(f"$FLIMFLAM_HOME/connection_rate/server {port}")
+
+    def process_output(self, runner):
+        total = 0
+
+        for i in range(runner.jobs):
+            line = tail(f"{runner.output_dir}/transfers.{i}.csv", 1)
+            values = line.split(",", 1)
+
+            try:
+                total += int(values[1])
+            except IndexError:
+                print("ERROR: Unexpected transfer value:", values)
+
+        # XXX This is currently warmup + duration because I haven't
+        # worked out how to isolate the transfer data for the duration
+        # period only.
+        summary = {
+            "duration": runner.warmup + runner.duration,
+            "cnxs": total,
+        }
+
+        return summary
+
+
 
 class Iperf3(Workload):
     def check(self, runner=None):
@@ -518,6 +560,7 @@ class Nginx(Relay):
 
 WORKLOADS = {
     "builtin": Builtin("builtin", ["tcp"]),
+    "connection-rate": ConnectionRate("connection-rate", ["tcp"]),
     "iperf3": Iperf3("iperf3", ["tcp"]),
     "h2load": H2load("h2load", ["tcp", "http2"]),
     "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1"]),
