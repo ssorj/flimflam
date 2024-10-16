@@ -161,7 +161,6 @@ options:
     flimflam run # Default workload, relay, and protocol are 'builtin', 'skrouterd', and 'tcp'
     flimflam run --workload iperf3
     flimflam run --workload h2load --relay nginx
-    flimflam run --workload h2load --protocol http2
 
 ## Recording perf data
 
@@ -170,7 +169,6 @@ These produce a `perf.data` file in the current directory.
     flimflam record
     flimflam record --workload iperf3
     flimflam record --workload h2load --relay nginx
-    flimflam record --workload h2load --protocol http2
 
 After recording, you can use `perf report` to inspect the results.
 The `--no-children` option sorts the results by each function's own
@@ -183,7 +181,7 @@ time, excluding that of its child calls.
 These produce a `flamegraph.html` file in the current directory.
 
     flimflam flamegraph
-    flimflam flamegraph --workload h2load-h1 --protocol http1
+    flimflam flamegraph --workload h2load-h1
 
 ## Benchmarking
 
