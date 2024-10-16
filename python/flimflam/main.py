@@ -519,21 +519,19 @@ class Nginx(Relay):
 WORKLOADS = {
     "builtin": Builtin("builtin", ["tcp"]),
     "iperf3": Iperf3("iperf3", ["tcp"]),
-    "h2load": H2load("h2load", ["tcp", "http2"]),
-    "h2load-h1": H2loadH1("h2load-h1", ["tcp", "http1"]),
+    "h2load": H2load("h2load", ["tcp"]),
+    "h2load-h1": H2loadH1("h2load-h1", ["tcp"]),
 }
 
 RELAYS = {
-    "skrouterd": Skrouterd("skrouterd", ["tcp", "http1", "http2"]),
-    "nghttpx": Nghttpx("nghttpx", ["http1", "http2"]),
-    "nginx": Nginx("nginx", ["tcp", "http1"]),
+    "skrouterd": Skrouterd("skrouterd", ["tcp"]),
+    "nghttpx": Nghttpx("nghttpx", ["tcp"]),
+    "nginx": Nginx("nginx", ["tcp"]),
     "none": Relay("none", ["tcp"]),
 }
 
 PROTOCOLS = [
     "tcp",
-    "http1",
-    "http2",
 ]
 
 def print_heading(name):
