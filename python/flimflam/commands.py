@@ -249,7 +249,8 @@ def flamegraph(*args, **kwargs):
         move("flamegraph.html", "old.flamegraph.html")
 
     def capture(pid1, pid2, duration, call_graph):
-        run(f"perf script flamegraph --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
+        run(f"perf record --freq 997 --call-graph {call_graph} --pid {pid1},{pid2} sleep {duration}")
+        run("perf script report flamegraph")
 
     _run_scenario(kwargs, capture)
 
